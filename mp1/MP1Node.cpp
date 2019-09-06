@@ -98,7 +98,6 @@ int MP1Node::initThisNode(Address *joinaddr) {
 	 */
 	int id = *(int*)(&memberNode->addr.addr);
 	int port = *(short*)(&memberNode->addr.addr[4]);
-
 	memberNode->bFailed = false;
 	memberNode->inited = true;
 	memberNode->inGroup = false;
@@ -201,7 +200,7 @@ void MP1Node::checkMessages() {
 
     // Pop waiting messages from memberNode's mp1q
     while ( !memberNode->mp1q.empty() ) {
-    	ptr = memberNode->mp1q.front().elt;
+    	ptr = memberNode->mp1q.front().elt; // elt = (void *) elt
     	size = memberNode->mp1q.front().size;
     	memberNode->mp1q.pop();
     	recvCallBack((void *)memberNode, (char *)ptr, size);
@@ -218,9 +217,36 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
 	/*
 	 * Your code goes here
 	 */
+    
+    Member* myMember;
+    myMember = (Member *)env;
 
-    std::cout << *(char *)data << std::endl;
-    std::cout << size << std::endl;
+    MessageHdr* incomingMsg;
+    incomingMsg = (MessageHdr *)data;
+
+    char addr[6];
+    memcpy(addr,(incomingMsg+1),sizeof(myMember->addr.addr));
+
+    int id = 0;
+    short port;
+    memcpy(&id,&addr[0],sizeof(int));
+    memcpy(&port,&addr[4],sizeof(short));
+
+    long heartbeat;
+    memcpy(&heartbeat,(char *)(incomingMsg+1) + 1 + sizeof(memberNode->addr.addr),sizeof(long));
+
+
+    if(incomingMsg->msgType == JOINREQ) {
+        size_t outgoingMsgSz = sizeof(MessageHdr) + 1 + sizeof(long);
+        MessageHdr* outgoingMsg;
+        outgoingMsg = (MessageHdr *) malloc(size )
+
+    }
+    std::cout << "----------------------" << std::endl;
+    std::cout << "message type: " << incomingMsg->msgType << std::endl;
+    std::cout << "id: " << id << std::endl;
+    std::cout << "port: " << port << std::endl;
+    std::cout << "heartbeat: " <<  heartbeat << std::endl;
 }
 
 /**
