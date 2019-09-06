@@ -6,6 +6,7 @@
  **********************************/
 
 #include "MP1Node.h"
+#include <time.h>
 
 /*
  * Note: You can change/add any functions in MP1Node.{h,cpp}
@@ -237,11 +238,24 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
 
 
     if(incomingMsg->msgType == JOINREQ) {
-        size_t outgoingMsgSz = sizeof(MessageHdr) + 1 + sizeof(long);
+        size_t outgoingMsgSz = sizeof(MessageHdr) + sizeof(memberNode->addr.addr) + sizeof(long) + 1;
         MessageHdr* outgoingMsg;
-        outgoingMsg = (MessageHdr *) malloc(size )
+        outgoingMsg = (MessageHdr *) malloc(outgoingMsgSz * sizeof(char));
+
+        outgoingMsg->msgType = JOINREP;
+        memcpy((char *)(outgoingMsg+1), &memberNode->addr.addr, sizeof(memberNode->addr.addr));
+        memcpy((char *)(outgoingMsg+1) + 1 + sizeof(memberNode->addr.addr), &memberNode->heartbeat, sizeof(long));
+        time_t timestampSec;
+        time(&timestampSec);
+        MemberListEntry memListEntry(id,port,heartbeat,timestampSec);
+        memberNode->memberList.push_back(memListEntry);
+        // Do I need to send the memberList?
+
+
+
 
     }
+
     std::cout << "----------------------" << std::endl;
     std::cout << "message type: " << incomingMsg->msgType << std::endl;
     std::cout << "id: " << id << std::endl;
