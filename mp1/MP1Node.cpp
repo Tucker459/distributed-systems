@@ -232,13 +232,22 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
     short port;
     memcpy(&id,&addr[0],sizeof(int));
     memcpy(&port,&addr[4],sizeof(short));
+    // Create Address for the debug log
+    string addrStr;
+    addrStr = to_string(id) + ":" + to_string(port); 
+    Address fromAddr(addrStr); 
 
     long heartbeat;
     memcpy(&heartbeat,(char *)(incomingMsg+1) + 1 + sizeof(memberNode->addr.addr),sizeof(long));
 
+    std::cout << "----------------------" << std::endl;
+    std::cout << "message type: " << incomingMsg->msgType << std::endl;
+    std::cout << "id: " << id << std::endl;
+    std::cout << "port: " << port << std::endl;
+    std::cout << "heartbeat: " <<  heartbeat << std::endl;
 
     if(incomingMsg->msgType == JOINREQ) {
-        size_t outgoingMsgSz = sizeof(MessageHdr) + sizeof(memberNode->addr.addr) + sizeof(long) + 1;
+        size_t outgoingMsgSz = sizeof(MessageHdr) + sizeof(memberNode->addr.addr) + sizeof(long) + sizeof(memberNode->memberList) + 2;
         MessageHdr* outgoingMsg;
         outgoingMsg = (MessageHdr *) malloc(outgoingMsgSz * sizeof(char));
 
@@ -249,18 +258,26 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
         time(&timestampSec);
         MemberListEntry memListEntry(id,port,heartbeat,timestampSec);
         memberNode->memberList.push_back(memListEntry);
-        // Do I need to send the memberList?
+        // Putting the membership list into the outgoing msg
+        memcpy((char *)(outgoingMsg+1) + 1 + sizeof(memberNode->addr.addr) + 1 + sizeof(long), &memberNode->memberList, sizeof(memberNode->memberList));
 
+#ifdef DEBUGLOG
+    log->logNodeAdd(&memberNode->addr, &fromAddr);
+#endif
 
+        // send JOINREP message back to the member that requested to join the group
+        emulNet->ENsend(&memberNode->addr, &fromAddr, (char *)outgoingMsg, outgoingMsgSz);
 
+        free(outgoingMsg);
 
+    } else if(incomingMsg->msgType == JOINREP) {
+
+        memcpy(&memberNode->memberList,(char *)(incomingMsg+1) + 1 + sizeof(memberNode->addr.addr) + 1 + sizeof(long), sizeof(memberNode->memberList));
+        std::cout << "membership list size: " << to_string(memberNode->memberList.size()) << std::endl;
+        std::cout << "Received JOINREP Message!" << std::endl;
     }
 
-    std::cout << "----------------------" << std::endl;
-    std::cout << "message type: " << incomingMsg->msgType << std::endl;
-    std::cout << "id: " << id << std::endl;
-    std::cout << "port: " << port << std::endl;
-    std::cout << "heartbeat: " <<  heartbeat << std::endl;
+
 }
 
 /**
