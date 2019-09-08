@@ -31,7 +31,8 @@
 enum MsgTypes{
     JOINREQ,
     JOINREP,
-    DUMMYLASTMSGTYPE
+    GOSSIP,
+	BROADCAST
 };
 
 /**
@@ -76,6 +77,7 @@ public:
 	void initMemberListTable(Member *memberNode);
 	void printAddress(Address *addr);
 	virtual ~MP1Node();
+	Address myAddress(int id, short port);
 };
 
 #endif /* _MP1NODE_H_ */

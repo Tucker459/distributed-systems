@@ -59,6 +59,19 @@ int MP1Node::enqueueWrapper(void *env, char *buff, int size) {
 }
 
 /**
+ * FUNCTION NAME: myAddress
+ *
+ * DESCRIPTION: Given id and port return the Address of the node
+ */
+Address MP1Node::myAddress(int id, short port) {
+	string addrStr;
+    addrStr = to_string(id) + ":" + to_string(port); 
+    Address newAddr(addrStr);
+
+    return newAddr;
+}
+
+/**
  * FUNCTION NAME: nodeStart
  *
  * DESCRIPTION: This function bootstraps the node
@@ -233,9 +246,7 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
     memcpy(&id,&addr[0],sizeof(int));
     memcpy(&port,&addr[4],sizeof(short));
     // Create Address for the debug log
-    string addrStr;
-    addrStr = to_string(id) + ":" + to_string(port); 
-    Address fromAddr(addrStr); 
+    Address fromAddr = myAddress(id,port);
 
     long heartbeat;
     memcpy(&heartbeat,(char *)(incomingMsg+1) + 1 + sizeof(memberNode->addr.addr),sizeof(long));
@@ -273,8 +284,31 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
     } else if(incomingMsg->msgType == JOINREP) {
 
         memcpy(&memberNode->memberList,(char *)(incomingMsg+1) + 1 + sizeof(memberNode->addr.addr) + 1 + sizeof(long), sizeof(memberNode->memberList));
-        std::cout << "membership list size: " << to_string(memberNode->memberList.size()) << std::endl;
+        size_t szOfList = memberNode->memberList.size();
         std::cout << "Received JOINREP Message!" << std::endl;
+        memberNode->inGroup = true;
+
+        for(vector<MemberListEntry>::iterator myPos = memberNode->memberList.begin() ; myPos != memberNode->memberList.end() ; ++myPos ) {
+            if(myPos->id == id) {
+                myPos->setheartbeat(myPos->heartbeat + 1);
+                break;
+            }
+        }
+
+        if(szOfList > 1) {
+            int indxNum = rand() % szOfList - 1;
+            MemberListEntry chosenNode = memberNode->memberList.at(indxNum);
+            while(chosenNode.id == id) {
+                 int indxNum = rand() % szOfList - 1;
+                 MemberListEntry chosenNode = memberNode->memberList.at(indxNum);
+            }
+        }
+        Address toAddr = myAddress(id,port);
+
+        emulNet->ENsend(&memberNode->addr, &toAddr, );
+
+    } else if(incomingMsg->msgType == GOSSIP) {
+
     }
 
 
