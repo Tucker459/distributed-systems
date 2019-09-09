@@ -78,8 +78,6 @@ public:
 	void printAddress(Address *addr);
 	virtual ~MP1Node();
 	Address myAddress(int id, short port);
-	std::tuple<int, short, long, Address> getMyInfo(MessageHdr* incomingMsg, Member* myMember);
-	std::tuple<int, short, long, Address> getMyInfo(MessageHdr* incomingMsg, Member* myMember, enum msgType);
 };
 
 #endif /* _MP1NODE_H_ */

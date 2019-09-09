@@ -73,57 +73,6 @@ Address MP1Node::myAddress(int id, short port) {
 }
 
 /**
- * FUNCTION NAME: getMyInfo
- *
- * DESCRIPTION: Given messageHdr and member return various information. 
- * For instance, this function should return the id, port, heartbeat, and address. 
- */
-std::tuple<int, short, long, Address> getMyInfo(MessageHdr* incomingMsg, Member* myMember) {
-	char addr[6];
-    memcpy(addr,(incomingMsg+1),sizeof(myMember->addr.addr));
-
-    int id = 0;
-    short port;
-    memcpy(&id,&addr[0],sizeof(int));
-    memcpy(&port,&addr[4],sizeof(short));
-    // Create Address for the debug log
-    Address fromAddr = myAddress(id,port);
-
-    long heartbeat;
-    memcpy(&heartbeat,(char *)(incomingMsg+1) + 1 + sizeof(memberNode->addr.addr),sizeof(long));
-
-    return std::make_tuple(id, port, heartbeat, fromAddr);
-}
-
-/**
- * FUNCTION NAME: getMyInfo
- *
- * DESCRIPTION: Given messageHdr, member, msgType return various information. 
- * For instance, this function should return the id, port, heartbeat, 
- * address. It will also copy over the memberList from the incomingMsg into the current
- * node's memberlist that is being processed. 
- */
-std::tuple<int, short, long, Address> getMyInfo(MessageHdr* incomingMsg, Member* myMember, enum msgType) {
-	char addr[6];
-    memcpy(addr,(incomingMsg+1),sizeof(myMember->addr.addr));
-
-    int id = 0;
-    short port;
-    memcpy(&id,&addr[0],sizeof(int));
-    memcpy(&port,&addr[4],sizeof(short));
-    // Create Address for the debug log
-    Address fromAddr = myAddress(id,port);
-
-    long heartbeat;
-    memcpy(&heartbeat,(char *)(incomingMsg+1) + 1 + sizeof(memberNode->addr.addr),sizeof(long));
-
-    // Copy over the memberList from the incomingMsg.
-    memcpy(&memberNode->memberList,(char *)(incomingMsg+1) + 1 + sizeof(memberNode->addr.addr) + 1 + sizeof(long), sizeof(memberNode->memberList));
-
-    return std::make_tuple(id, port, heartbeat, fromAddr);
-}
-
-/**
  * FUNCTION NAME: nodeStart
  *
  * DESCRIPTION: This function bootstraps the node
@@ -298,14 +247,28 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
 
     if(incomingMsg->msgType == JOINREQ) {
 
+        char myAddr[6];
+        memcpy(myAddr,(incomingMsg+1),sizeof(myMember->addr.addr));
+
         int id = 0;
         short port;
+        memcpy(&id,&myAddr[0],sizeof(int));
+        memcpy(&port,&myAddr[4],sizeof(short));
+        // Create Address for the debug log
+        Address toAddr = myAddress(id,port);
+
         long heartbeat;
-        Address toAddr;
+        memcpy(&heartbeat,(char *)(incomingMsg+1) + 1 + sizeof(memberNode->addr.addr),sizeof(long));
 
-        std::tie(id,port,heartbeat,toAddr) = getMyInfo(incomingMsg, myMember);
+        std::cout << "----------------------" << std::endl;
+        std::cout << "Received JOINREQ Message!" << std::endl;
+        std::cout << "message type: " << incomingMsg->msgType << std::endl;
+        std::cout << "id: " << id << std::endl;
+        std::cout << "port: " << port << std::endl;
+        std::cout << "heartbeat: " <<  heartbeat << std::endl;
+        std::cout << "address: " << toAddr.getAddress() << std::endl;
 
-        size_t outgoingMsgSz = sizeof(MessageHdr) + sizeof(memberNode->addr.addr) + sizeof(long) + sizeof(memberNode->memberList) + 2;
+        size_t outgoingMsgSz = sizeof(MessageHdr) + sizeof(memberNode->addr.addr) + sizeof(heartbeat) + sizeof(memberNode->memberList) + 2;
         MessageHdr* outgoingMsg;
         outgoingMsg = (MessageHdr *) malloc(outgoingMsgSz * sizeof(char));
 
@@ -324,21 +287,40 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
 #endif
 
         // send JOINREP message back to the member that requested to join the group
+
         emulNet->ENsend(&memberNode->addr, &toAddr, (char *)outgoingMsg, outgoingMsgSz);
 
         free(outgoingMsg);
 
     } else if(incomingMsg->msgType == JOINREP) {
 
+        char myAddr[6];
+        memcpy(myAddr,(incomingMsg+1),sizeof(myMember->addr.addr));
+
         int id = 0;
         short port;
-        long heartbeat;
-        Address toAddr;
+        memcpy(&id,&myAddr[0],sizeof(int));
+        memcpy(&port,&myAddr[4],sizeof(short));
+        // Create Address for the debug log
+        Address toAddr = myAddress(id,port);
 
-        std::tie(id,port,heartbeat,toAddr) = getMyInfo(incomingMsg, myMember, JOINREP);
+        long heartbeat;
+        memcpy(&heartbeat,(char *)(incomingMsg+1) + 1 + sizeof(memberNode->addr.addr),sizeof(long));
+
+        memcpy(&memberNode->memberList,(char *)(incomingMsg+1) + 1 + sizeof(memberNode->addr.addr) + 1 + sizeof(long), sizeof(memberNode->memberList));
+
+        
+        std::cout << "----------------------" << std::endl;
+        std::cout << "Received JOINREP Message!" << std::endl;
+        std::cout << "message type: " << incomingMsg->msgType << std::endl;
+        std::cout << "id: " << id << std::endl;
+        std::cout << "port: " << port << std::endl;
+        std::cout << "heartbeat: " <<  heartbeat << std::endl;
+        std::cout << "address: " << toAddr.getAddress() << std::endl;
+
 
         size_t szOfList = memberNode->memberList.size();
-        std::cout << "Received JOINREP Message!" << std::endl;
+        std::cout << "Size of membership list: " << szOfList << std::endl;
         memberNode->inGroup = true;
 
         for(vector<MemberListEntry>::iterator myPos = memberNode->memberList.begin() ; myPos != memberNode->memberList.end() ; ++myPos ) {
@@ -349,27 +331,31 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
         }
 
         if(szOfList > 1) {
-            int indxNum = rand() % szOfList - 1;
+            int indxNum = rand() % (szOfList - 1);
             MemberListEntry chosenNode = memberNode->memberList.at(indxNum);
             while(chosenNode.id== id) {
                  int indxNum = rand() % szOfList - 1;
                  MemberListEntry chosenNode = memberNode->memberList.at(indxNum);
             }
-
-            size_t outgoingMsgSz = sizeof(MessageHdr) + sizeof(memberNode->memberList) + 1;
+ 
+            size_t outgoingMsgSz = sizeof(MessageHdr) + sizeof(memberNode->memberList);
             MessageHdr* outgoingMsg;
             outgoingMsg = (MessageHdr *) malloc(outgoingMsgSz * sizeof(char));
 
             outgoingMsg->msgType = GOSSIP;
+            memcpy((char *)(outgoingMsg+1), &memberNode->memberList,sizeof(memberNode->memberList));
 
             Address toAddr = myAddress(chosenNode.id,chosenNode.port); 
+            // Sending my GOSSIP message to a random node in my membership list
+            emulNet->ENsend(&memberNode->addr, &toAddr, (char *)outgoingMsg, outgoingMsgSz);
 
-            emulNet->ENsend(&memberNode->addr, &toAddr, );
+            free(outgoingMsg);
         }
        
 
     } else if(incomingMsg->msgType == GOSSIP) {
 
+         std::cout << "Received GOSSIP Message!" << std::endl;
     }
 
 
