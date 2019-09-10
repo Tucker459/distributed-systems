@@ -78,6 +78,7 @@ public:
 	void printAddress(Address *addr);
 	virtual ~MP1Node();
 	Address myAddress(int id, short port);
+	bool sortByID(const MemberListEntry memOne, const MemberListEntry memTwo);
 };
 
 #endif /* _MP1NODE_H_ */

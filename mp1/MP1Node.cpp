@@ -8,6 +8,7 @@
 #include "MP1Node.h"
 #include <time.h>
 #include <tuple>
+#include <algorithm>
 
 /*
  * Note: You can change/add any functions in MP1Node.{h,cpp}
@@ -70,6 +71,15 @@ Address MP1Node::myAddress(int id, short port) {
     Address newAddr(addrStr);
 
     return newAddr;
+}
+
+/**
+ * FUNCTION NAME: sortByID
+ *
+ * DESCRIPTION: Given two memberlistentries sort by id
+ */
+bool MP1Node::sortByID(const MemberListEntry memOne, const MemberListEntry memTwo) {
+	return (memOne.id < memTwo.id);
 }
 
 /**
@@ -380,9 +390,15 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
         std::cout << "heartbeat: " <<  heartbeat << std::endl;
         std::cout << "address: " << toAddr.getAddress() << std::endl;
 
+        // Goes through the membership list of the node and check if any node needs to be updated based on the heartbeat counter of
+        // incoming membership list that was sent.
+        // If no node matches the incoming node's membership list it will be pushed back on the vector. 
         for(std::vector<MemberListEntry>::iterator imPos = incomingMemLst.begin(); imPos != incomingMemLst.end(); imPos++) {
             for(std::vector<MemberListEntry>::iterator memPos = memberNode->memberList.begin(); memPos != memberNode->memberList.end(); memPos++) {
                 if(imPos->id < memPos->id) {
+                    MemberListEntry memListEntry(id,port,heartbeat,par->getcurrtime());
+                    memberNode->memberList.push_back(memListEntry);
+                    std::sort(memberNode->memberList.begin(), memberNode->memberList.end(), sortByID);
                     break;
                 } else if(imPos->id == memPos->id) {
                     if(imPos->heartbeat > memPos->heartbeat) {
@@ -392,8 +408,17 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
                     break;
                 }
                 // Check if last element
-                if()
+                if(std::next(imPos) == memberNode->memberList.end()) {
+                    MemberListEntry memListEntry(id,port,heartbeat,par->getcurrtime());
+                    memberNode->memberList.push_back(memListEntry);
+                    std::sort(memberNode->memberList.begin(), memberNode->memberList.end(), sortByID);
+                    break;
+                }
             }
+        }
+        std::cout << "---Printing out membership list---" << std::endl;
+        for(std::vector<MemberListEntry>::iterator myPos = memberNode->memberList.begin(); myPos != memberNode->memberList.end(); myPos++) {
+            std::cout << "id: " << myPos->id << " port: " << myPos->port << " heartbeat: " << myPos->heartbeat << " timestamp: " << myPos->timestamp << std::endl;
         }
 
     }
