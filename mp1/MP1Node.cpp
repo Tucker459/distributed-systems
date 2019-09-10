@@ -277,7 +277,7 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
         memcpy((char *)(outgoingMsg+1) + 1 + sizeof(memberNode->addr.addr), &memberNode->heartbeat, sizeof(long));
         time_t timestampSec;
         time(&timestampSec);
-        MemberListEntry memListEntry(id,port,heartbeat,timestampSec);
+        MemberListEntry memListEntry(id,port,heartbeat,par->getcurrtime());
         memberNode->memberList.push_back(memListEntry);
         // Putting the membership list into the outgoing msg
         memcpy((char *)(outgoingMsg+1) + 1 + sizeof(memberNode->addr.addr) + 1 + sizeof(long), &memberNode->memberList, sizeof(memberNode->memberList));
@@ -323,7 +323,7 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
         std::cout << "Size of membership list: " << szOfList << std::endl;
         memberNode->inGroup = true;
 
-        for(vector<MemberListEntry>::iterator myPos = memberNode->memberList.begin() ; myPos != memberNode->memberList.end() ; ++myPos ) {
+        for(vector<MemberListEntry>::iterator myPos = memberNode->memberList.begin() ; myPos != memberNode->memberList.end() ; myPos++) {
             if(myPos->id == id) {
                 myPos->setheartbeat(myPos->heartbeat + 1);
                 break;
@@ -333,9 +333,9 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
         if(szOfList > 1) {
             int indxNum = rand() % (szOfList - 1);
             MemberListEntry chosenNode = memberNode->memberList.at(indxNum);
-            while(chosenNode.id== id) {
+            while(chosenNode.id == id) {
                  int indxNum = rand() % szOfList - 1;
-                 MemberListEntry chosenNode = memberNode->memberList.at(indxNum);
+                 chosenNode = memberNode->memberList.at(indxNum);
             }
  
             size_t outgoingMsgSz = sizeof(MessageHdr) + sizeof(memberNode->memberList);
@@ -355,7 +355,47 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
 
     } else if(incomingMsg->msgType == GOSSIP) {
 
-         std::cout << "Received GOSSIP Message!" << std::endl;
+        char myAddr[6];
+        memcpy(myAddr,(incomingMsg+1),sizeof(myMember->addr.addr));
+
+        int id = 0;
+        short port;
+        memcpy(&id,&myAddr[0],sizeof(int));
+        memcpy(&port,&myAddr[4],sizeof(short));
+        // Create Address for the debug log
+        Address toAddr = myAddress(id,port);
+
+        long heartbeat;
+        memcpy(&heartbeat,(char *)(incomingMsg+1) + 1 + sizeof(memberNode->addr.addr),sizeof(long));
+
+        std::vector<MemberListEntry> incomingMemLst;
+
+        memcpy(&incomingMemLst,(char *)(incomingMsg+1) + 1 + sizeof(memberNode->addr.addr) + 1 + sizeof(long), sizeof(memberNode->memberList));
+
+        std::cout << "----------------------" << std::endl;
+        std::cout << "Received GOSSIP Message!" << std::endl;
+        std::cout << "message type: " << incomingMsg->msgType << std::endl;
+        std::cout << "id: " << id << std::endl;
+        std::cout << "port: " << port << std::endl;
+        std::cout << "heartbeat: " <<  heartbeat << std::endl;
+        std::cout << "address: " << toAddr.getAddress() << std::endl;
+
+        for(std::vector<MemberListEntry>::iterator imPos = incomingMemLst.begin(); imPos != incomingMemLst.end(); imPos++) {
+            for(std::vector<MemberListEntry>::iterator memPos = memberNode->memberList.begin(); memPos != memberNode->memberList.end(); memPos++) {
+                if(imPos->id < memPos->id) {
+                    break;
+                } else if(imPos->id == memPos->id) {
+                    if(imPos->heartbeat > memPos->heartbeat) {
+                        memPos->heartbeat = imPos->heartbeat;
+                        memPos->timestamp = par->getcurrtime();
+                    }
+                    break;
+                }
+                // Check if last element
+                if()
+            }
+        }
+
     }
 
 
