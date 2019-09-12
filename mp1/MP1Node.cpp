@@ -269,15 +269,8 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
         memberNode->memberList.push_back(memListEntry);
 
         size_t szOfList = memberNode->memberList.size();
-        std::cout << "size of list: " << szOfList << std::endl;
-        int myID[szOfList];
-        short myPort[szOfList];
-        long myHeartbeat[szOfList];
-        long myTS[szOfList];
-        bool failure[szOfList];
-        bool cleanup[szOfList]; 
 
-        size_t outgoingMsgSz = sizeof(MessageHdr) + sizeof(memberNode->addr.addr) + sizeof(heartbeat) + sizeof(szOfList) + (sizeof(int) * szOfList);
+        size_t outgoingMsgSz = sizeof(MessageHdr) + sizeof(memberNode->addr.addr) + sizeof(heartbeat) + sizeof(szOfList) + (sizeof(MemberListInfo) * szOfList);
         MessageHdr* outgoingMsg;
         outgoingMsg = (MessageHdr *) malloc(outgoingMsgSz * sizeof(char));
 
@@ -286,21 +279,18 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
         memcpy((char *)(outgoingMsg+1) + sizeof(memberNode->addr.addr), &memberNode->heartbeat, sizeof(memberNode->heartbeat));
         memcpy((char *)(outgoingMsg+1) + sizeof(memberNode->addr.addr) + sizeof(memberNode->heartbeat), &szOfList, sizeof(szOfList));
         int i = 0;
+        MemberListInfo memInfo[szOfList];
         for(std::vector<MemberListEntry>::iterator cPos = memberNode->memberList.begin(); cPos != memberNode->memberList.end(); cPos++){
-            myID[i] = cPos->id;
-            std::cout << "myID: " << myID[i] << std::endl;
-            myPort[i] = cPos->port;
-            myHeartbeat[i] = cPos->heartbeat;
-            myTS[i] = cPos->timestamp;
-            failure[i] = false;
-            cleanup[i] = false;
+            memInfo[i].id= cPos->id;
+            memInfo[i].port = cPos->port;
+            memInfo[i].heartbeat = cPos->heartbeat;
+            memInfo[i].timestamp = cPos->timestamp;
+            memInfo[i].failure = false;
+            memInfo[i].cleanup = false;
             i++;
         }
         // Putting the membership list into the outgoing msg
-        memcpy((char *)(outgoingMsg+1), &memberNode->addr.addr, sizeof(memberNode->addr.addr));
-        memcpy((char *)(outgoingMsg+1) + sizeof(memberNode->addr.addr), &memberNode->heartbeat, sizeof(memberNode->heartbeat));
-        memcpy((char *)(outgoingMsg+1) + sizeof(memberNode->addr.addr) + sizeof(memberNode->heartbeat), &szOfList, sizeof(szOfList));
-        memcpy((char *)(outgoingMsg+1) + sizeof(memberNode->addr.addr) + sizeof(memberNode->heartbeat) + sizeof(size_t), myID, (sizeof(int) * szOfList));
+        memcpy((char *)(outgoingMsg+1) + sizeof(memberNode->addr.addr) + sizeof(memberNode->heartbeat) + sizeof(szOfList), memInfo, (sizeof(MemberListInfo) * szOfList));
 
 #ifdef DEBUGLOG
     log->logNodeAdd(&memberNode->addr, &toAddr);
@@ -330,8 +320,9 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
         size_t szOfList;
         memcpy(&szOfList,(char *)(incomingMsg+1) + sizeof(memberNode->addr.addr) + sizeof(heartbeat),sizeof(szOfList));
 
-        int myID[szOfList];
-        memcpy(&myID,(char *)(incomingMsg+1) + sizeof(memberNode->addr.addr) + sizeof(heartbeat) + sizeof(szOfList), (sizeof(int) * szOfList));
+        //int myID[szOfList];
+        MemberListInfo memInfo[szOfList];
+        memcpy(&memInfo,(char *)(incomingMsg+1) + sizeof(memberNode->addr.addr) + sizeof(heartbeat) + sizeof(szOfList), (sizeof(MemberListInfo) * szOfList));
         
         std::cout << "----------------------" << std::endl;
         std::cout << "Received JOINREP Message!" << std::endl;
@@ -343,45 +334,40 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
         std::cout << "size of list: " << szOfList << std::endl;
 
         for(int i = 0; i != szOfList; i++){
-            std::cout << "list ID: " << myID[i] << std::endl;
+            std::cout << "id: " << memInfo[i].id << " port: " << memInfo[i].port << " heartbeat: " << memInfo[i].heartbeat << " timestamp: " << memInfo[i].timestamp << " failure: " << memInfo[i].failure  <<  " cleanup: " << memInfo[i].cleanup << std::endl;
         }
 
-        // //size_t szOfList = memberNode->memberList.size();
-        // // std::cout << "Size of membership list: " << szOfList << std::endl;
-        // memberNode->inGroup = true;
+        memberNode->inGroup = true;
 
-        // for(vector<MemberListEntry>::iterator myPos = memberNode->memberList.begin() ; myPos != memberNode->memberList.end() ; myPos++) {
-        //     if(myPos->id == id) {
-        //         myPos->setheartbeat(myPos->heartbeat + 1);
-        //         break;
-        //     }
-        // }
+        for(vector<MemberListEntry>::iterator myPos = memberNode->memberList.begin() ; myPos != memberNode->memberList.end() ; myPos++) {
+            if(myPos->id == id) {
+                myPos->setheartbeat(myPos->heartbeat + 1);
+                break;
+            }
+        }
 
-        // for(std::vector<MemberListEntry>::iterator cPos =  memberNode->memberList.begin(); cPos !=  memberNode->memberList.end(); cPos++){
-        //     std::cout << "id: " << cPos->id << " port: " << cPos->port << " heartbeat: " << cPos->heartbeat << " timestamp: " << cPos->timestamp << std::endl;
-        // }
-
-        // if(szOfList > 1) {
-        //     int indxNum = rand() % (szOfList - 1);
-        //     MemberListEntry chosenNode = memberNode->memberList.at(indxNum);
-        //     while(chosenNode.id == id) {
-        //          int indxNum = rand() % szOfList - 1;
-        //          chosenNode = memberNode->memberList.at(indxNum);
-        //     }
+        if(szOfList > 1) {
+            int indxNum = rand() % (szOfList - 1);
+            MemberListInfo chosenNode = memInfo[indxNum];
+            while(chosenNode.id == id) {
+                 int indxNum = rand() % szOfList - 1;
+                 chosenNode = memInfo[indxNum];
+            }
  
-        //     size_t outgoingMsgSz = sizeof(MessageHdr) + sizeof(memberNode->memberList);
-        //     MessageHdr* outgoingMsg;
-        //     outgoingMsg = (MessageHdr *) malloc(outgoingMsgSz * sizeof(char));
+            size_t outgoingMsgSz = sizeof(MessageHdr) + sizeof(szOfList) + (sizeof(MemberListInfo) * szOfList);
+            MessageHdr* outgoingMsg;
+            outgoingMsg = (MessageHdr *) malloc(outgoingMsgSz * sizeof(char));
 
-        //     outgoingMsg->msgType = GOSSIP;
-        //     memcpy((char *)(outgoingMsg+1), &memberNode->memberList,sizeof(memberNode->memberList));
+            outgoingMsg->msgType = GOSSIP;
+            memcpy((char *)(outgoingMsg+1), &szOfList,sizeof(szOfList));
+            memcpy((char *)(outgoingMsg+1) + sizeof(szOfList), &memInfo,sizeof(MemberListInfo) * szOfList);
 
-        //     Address toAddr = myAddress(chosenNode.id,chosenNode.port); 
-        //     // Sending my GOSSIP message to a random node in my membership list
-        //     emulNet->ENsend(&memberNode->addr, &toAddr, (char *)outgoingMsg, outgoingMsgSz);
+            Address toAddr = myAddress(chosenNode.id,chosenNode.port); 
+            // Sending my GOSSIP message to a random node in my membership list
+            emulNet->ENsend(&memberNode->addr, &toAddr, (char *)outgoingMsg, outgoingMsgSz);
 
-        //     free(outgoingMsg);
-        // }
+            free(outgoingMsg);
+        }
        
 
     } else if(incomingMsg->msgType == GOSSIP) {
@@ -389,13 +375,15 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
         std::cout << "----------------------" << std::endl;
         std::cout << "Received GOSSIP Message!" << std::endl;
 
-        // std::vector<MemberListEntry> incomingMemLst;
+        size_t szOfList;
+        memcpy(&szOfList,(char *)(incomingMsg+1),sizeof(szOfList));
 
-        // memcpy(&incomingMemLst,(incomingMsg+1), sizeof(memberNode->memberList));
-
-        // for(std::vector<MemberListEntry>::iterator cPos = incomingMemLst.begin(); cPos != incomingMemLst.end(); cPos++){
-        //     std::cout << "id: " << cPos->id << " port: " << cPos->port << " heartbeat: " << cPos->heartbeat << " timestamp: " << cPos->timestamp << std::endl;
-        // }
+        MemberListInfo memInfo[szOfList];
+        memcpy(&memInfo,(char *)(incomingMsg+1) + sizeof(szOfList), (sizeof(MemberListInfo) * szOfList));
+        
+        for(int i = 0; i != szOfList; i++){
+            std::cout << "id: " << memInfo[i].id << " port: " << memInfo[i].port << " heartbeat: " << memInfo[i].heartbeat << " timestamp: " << memInfo[i].timestamp << " failure: " << memInfo[i].failure  <<  " cleanup: " << memInfo[i].cleanup << std::endl;
+        }
 
         // Goes through the membership list of the node and check if any node needs to be updated based on the heartbeat counter of
         // incoming membership list that was sent.
