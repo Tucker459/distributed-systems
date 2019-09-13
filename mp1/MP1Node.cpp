@@ -267,7 +267,7 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
         time(&timestampSec);
         MemberListEntry memListEntry(id,port,heartbeat,par->getcurrtime());
         memberNode->memberList.push_back(memListEntry);
-
+        
         size_t szOfList = memberNode->memberList.size();
 
         size_t outgoingMsgSz = sizeof(MessageHdr) + sizeof(memberNode->addr.addr) + sizeof(heartbeat) + sizeof(szOfList) + (sizeof(MemberListInfo) * szOfList);
@@ -292,9 +292,9 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
         // Putting the membership list into the outgoing msg
         memcpy((char *)(outgoingMsg+1) + sizeof(memberNode->addr.addr) + sizeof(memberNode->heartbeat) + sizeof(szOfList), memInfo, (sizeof(MemberListInfo) * szOfList));
 
-#ifdef DEBUGLOG
-    log->logNodeAdd(&memberNode->addr, &toAddr);
-#endif
+        #ifdef DEBUGLOG
+            log->logNodeAdd(&memberNode->addr, &toAddr);
+        #endif
 
         //send JOINREP message back to the member that requested to join the group
 
@@ -337,17 +337,25 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
         for(int i = 0; i != szOfList; i++){
            MemberListEntry memListEntry(memInfo[i].id,memInfo[i].port,memInfo[i].heartbeat,par->getcurrtime());
            memberNode->memberList.push_back(memListEntry);
+           Address tmpAddr = myAddress(memInfo[i].id,memInfo[i].port);
+           #ifdef DEBUGLOG
+                log->logNodeAdd(&memberNode->addr, &tmpAddr);
+           #endif
         }
 
         memberNode->inGroup = true;
         int i = 0;
         for(vector<MemberListEntry>::iterator myPos = memberNode->memberList.begin() ; myPos != memberNode->memberList.end() ; myPos++) {
-            if(myPos->id == myMember.addr) {
+            Address tempAddr = myAddress(myPos->id, myPos->port);
+            if(tempAddr.getAddress() == myMember->addr.getAddress()) {
                 myPos->heartbeat = myPos->heartbeat + 1;
+                myPos->timestamp = par->getcurrtime();
             }
 
-            if(memInfo[i].id == id) {
+            tempAddr = myAddress(memInfo[i].id, memInfo[i].port);
+            if(tempAddr.getAddress() == myMember->addr.getAddress()) {
                 memInfo[i].heartbeat = memInfo[i].heartbeat + 1;
+                memInfo[i].timestamp =  par->getcurrtime();
                 break;
             }
             i++;
@@ -362,7 +370,8 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
         if(szOfList > 1) {
             int indxNum = rand() % (szOfList - 1);
             MemberListInfo chosenNode = memInfo[indxNum];
-            while(chosenNode.id == id) {
+            Address tempAddr = myAddress(chosenNode.id, chosenNode.port);
+            while(tempAddr.getAddress() == myMember->addr.getAddress()) {
                  int indxNum = rand() % szOfList - 1;
                  chosenNode = memInfo[indxNum];
             }
@@ -411,10 +420,14 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
                     break;
                 }
                 // Check if last element
-                if(i + 1 == szOfList) {
+                if(std::next(memPos) == memberNode->memberList.end()) {
                     MemberListEntry memListEntry(memInfo[i].id,memInfo[i].port,memInfo[i].heartbeat,par->getcurrtime());
                     memberNode->memberList.push_back(memListEntry);
                     std::sort(memberNode->memberList.begin(), memberNode->memberList.end(), MemberListCompareByID());
+                    Address tmpAddr = myAddress(memInfo[i].id,memInfo[i].port);
+                    #ifdef DEBUGLOG
+                        log->logNodeAdd(&memberNode->addr, &tmpAddr);
+                    #endif
                     break;
                 }
             }
@@ -424,9 +437,52 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
             std::cout << "id: " << myPos->id << " port: " << myPos->port << " heartbeat: " << myPos->heartbeat << " timestamp: " << myPos->timestamp << std::endl;
         }
 
+        // Increase heartbeat
+        for(vector<MemberListEntry>::iterator myPos = memberNode->memberList.begin() ; myPos != memberNode->memberList.end() ; myPos++) {
+            Address tempAddr = myAddress(myPos->id, myPos->port);
+            if(tempAddr.getAddress() == myMember->addr.getAddress()) {
+                myPos->heartbeat = myPos->heartbeat + 1;
+                myPos->timestamp = par->getcurrtime();
+            }
+        }
+
+        MemberListInfo memInfoUpdated[memberNode->memberList.size()];
+        int i = 0;
+        for(std::vector<MemberListEntry>::iterator myPos = memberNode->memberList.begin(); myPos != memberNode->memberList.end(); myPos++) {
+            memInfoUpdated[i].id = myPos->id;
+            memInfoUpdated[i].port = myPos->port;
+            memInfoUpdated[i].heartbeat = myPos->heartbeat;
+            memInfoUpdated[i].timestamp = myPos->timestamp;
+            memInfoUpdated[i].failure = false;
+            memInfoUpdated[i].timestamp = false;
+            i++;
+        }
+
+        if(memberNode->memberList.size() > 2) {
+            std::random_shuffle(memberNode->memberList.begin(), memberNode->memberList.end());
+            Address firstAddr = myAddress(memberNode->memberList[0].id, memberNode->memberList[0].port);
+            Address secondAddr = myAddress(memberNode->memberList[1].id, memberNode->memberList[1].port);
+            while(firstAddr.getAddress() == myMember->addr.getAddress() || secondAddr.getAddress() == myMember->addr.getAddress()) {
+                std::random_shuffle(memberNode->memberList.begin(), memberNode->memberList.end());
+                firstAddr = myAddress(memberNode->memberList[0].id, memberNode->memberList[0].port);
+                secondAddr = myAddress(memberNode->memberList[1].id, memberNode->memberList[1].port);
+            }
+            size_t szOfMemList = memberNode->memberList.size();
+            size_t outgoingMsgSz = sizeof(MessageHdr) + sizeof(szOfMemList) + (sizeof(MemberListInfo) * memberNode->memberList.size());
+            MessageHdr* outgoingMsg;
+            outgoingMsg = (MessageHdr *) malloc(outgoingMsgSz * sizeof(char));
+
+            outgoingMsg->msgType = GOSSIP;
+            memcpy((char *)(outgoingMsg+1), &szOfMemList,sizeof(szOfMemList));
+            memcpy((char *)(outgoingMsg+1) + sizeof(szOfMemList), &memInfoUpdated,sizeof(MemberListInfo) * memberNode->memberList.size());
+ 
+            // Sending my GOSSIP messages to a random nodes in my membership list
+            emulNet->ENsend(&memberNode->addr, &firstAddr, (char *)outgoingMsg, outgoingMsgSz);
+            emulNet->ENsend(&memberNode->addr, &secondAddr, (char *)outgoingMsg, outgoingMsgSz);
+
+            free(outgoingMsg);
+        }
     }
-
-
 }
 
 /**
