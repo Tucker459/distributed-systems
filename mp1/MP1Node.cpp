@@ -9,6 +9,8 @@
 #include <time.h>
 #include <tuple>
 #include <algorithm>
+#include <chrono>
+#include <thread>
 
 /*
  * Note: You can change/add any functions in MP1Node.{h,cpp}
@@ -372,8 +374,9 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
             MemberListInfo chosenNode = memInfo[indxNum];
             Address tempAddr = myAddress(chosenNode.id, chosenNode.port);
             while(tempAddr.getAddress() == myMember->addr.getAddress()) {
-                 int indxNum = rand() % szOfList - 1;
+                 int indxNum = rand() % (szOfList - 1);
                  chosenNode = memInfo[indxNum];
+                 tempAddr = myAddress(chosenNode.id, chosenNode.port);
             }
  
             size_t outgoingMsgSz = sizeof(MessageHdr) + sizeof(szOfList) + (sizeof(MemberListInfo) * szOfList);
@@ -432,10 +435,6 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
                 }
             }
         }
-        std::cout << "---Printing out membership list---" << std::endl;
-        for(std::vector<MemberListEntry>::iterator myPos = memberNode->memberList.begin(); myPos != memberNode->memberList.end(); myPos++) {
-            std::cout << "id: " << myPos->id << " port: " << myPos->port << " heartbeat: " << myPos->heartbeat << " timestamp: " << myPos->timestamp << std::endl;
-        }
 
         // Increase heartbeat
         for(vector<MemberListEntry>::iterator myPos = memberNode->memberList.begin() ; myPos != memberNode->memberList.end() ; myPos++) {
@@ -446,6 +445,12 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
             }
         }
 
+        std::cout << "---Printing out membership list---" << std::endl;
+        std::cout << "Node: " << myMember->addr.getAddress() << std::endl;
+        for(std::vector<MemberListEntry>::iterator myPos = memberNode->memberList.begin(); myPos != memberNode->memberList.end(); myPos++) {
+            std::cout << "id: " << myPos->id << " port: " << myPos->port << " heartbeat: " << myPos->heartbeat << " timestamp: " << myPos->timestamp << std::endl;
+        }
+
         MemberListInfo memInfoUpdated[memberNode->memberList.size()];
         int i = 0;
         for(std::vector<MemberListEntry>::iterator myPos = memberNode->memberList.begin(); myPos != memberNode->memberList.end(); myPos++) {
@@ -454,7 +459,7 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
             memInfoUpdated[i].heartbeat = myPos->heartbeat;
             memInfoUpdated[i].timestamp = myPos->timestamp;
             memInfoUpdated[i].failure = false;
-            memInfoUpdated[i].timestamp = false;
+            memInfoUpdated[i].cleanup = false;
             i++;
         }
 
@@ -475,9 +480,12 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
             outgoingMsg->msgType = GOSSIP;
             memcpy((char *)(outgoingMsg+1), &szOfMemList,sizeof(szOfMemList));
             memcpy((char *)(outgoingMsg+1) + sizeof(szOfMemList), &memInfoUpdated,sizeof(MemberListInfo) * memberNode->memberList.size());
- 
+
+            std::sort(memberNode->memberList.begin(), memberNode->memberList.end(), MemberListCompareByID());
             // Sending my GOSSIP messages to a random nodes in my membership list
             emulNet->ENsend(&memberNode->addr, &firstAddr, (char *)outgoingMsg, outgoingMsgSz);
+            // std::chrono::seconds timespan(2);
+            // std::this_thread::sleep_for(timespan);
             emulNet->ENsend(&memberNode->addr, &secondAddr, (char *)outgoingMsg, outgoingMsgSz);
 
             free(outgoingMsg);
