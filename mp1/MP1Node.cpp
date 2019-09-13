@@ -323,7 +323,7 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
         //int myID[szOfList];
         MemberListInfo memInfo[szOfList];
         memcpy(&memInfo,(char *)(incomingMsg+1) + sizeof(memberNode->addr.addr) + sizeof(heartbeat) + sizeof(szOfList), (sizeof(MemberListInfo) * szOfList));
-        
+    
         std::cout << "----------------------" << std::endl;
         std::cout << "Received JOINREP Message!" << std::endl;
         std::cout << "message type: " << incomingMsg->msgType << std::endl;
@@ -333,18 +333,31 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
         std::cout << "address: " << toAddr.getAddress() << std::endl;
         std::cout << "size of list: " << szOfList << std::endl;
 
+    
         for(int i = 0; i != szOfList; i++){
-            std::cout << "id: " << memInfo[i].id << " port: " << memInfo[i].port << " heartbeat: " << memInfo[i].heartbeat << " timestamp: " << memInfo[i].timestamp << " failure: " << memInfo[i].failure  <<  " cleanup: " << memInfo[i].cleanup << std::endl;
+           MemberListEntry memListEntry(memInfo[i].id,memInfo[i].port,memInfo[i].heartbeat,par->getcurrtime());
+           memberNode->memberList.push_back(memListEntry);
         }
 
         memberNode->inGroup = true;
-
+        int i = 0;
         for(vector<MemberListEntry>::iterator myPos = memberNode->memberList.begin() ; myPos != memberNode->memberList.end() ; myPos++) {
-            if(myPos->id == id) {
-                myPos->setheartbeat(myPos->heartbeat + 1);
+            if(myPos->id == myMember.addr) {
+                myPos->heartbeat = myPos->heartbeat + 1;
+            }
+
+            if(memInfo[i].id == id) {
+                memInfo[i].heartbeat = memInfo[i].heartbeat + 1;
                 break;
             }
+            i++;
         }
+
+        std::cout << "---Printing out membership list---" << std::endl;
+        for(std::vector<MemberListEntry>::iterator myPos = memberNode->memberList.begin(); myPos != memberNode->memberList.end(); myPos++) {
+            std::cout << "id: " << myPos->id << " port: " << myPos->port << " heartbeat: " << myPos->heartbeat << " timestamp: " << myPos->timestamp << std::endl;
+        }
+
 
         if(szOfList > 1) {
             int indxNum = rand() % (szOfList - 1);
@@ -388,33 +401,28 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
         // Goes through the membership list of the node and check if any node needs to be updated based on the heartbeat counter of
         // incoming membership list that was sent.
         // If no node matches the incoming node's membership list it will be pushed back on the vector. 
-        // for(std::vector<MemberListEntry>::iterator imPos = incomingMemLst.begin(); imPos != incomingMemLst.end(); imPos++) {
-        //     for(std::vector<MemberListEntry>::iterator memPos = memberNode->memberList.begin(); memPos != memberNode->memberList.end(); memPos++) {
-        //         if(imPos->id < memPos->id) {
-        //             MemberListEntry memListEntry(imPos->id,imPos->port,imPos->heartbeat,par->getcurrtime());
-        //             memberNode->memberList.push_back(memListEntry);
-        //             std::sort(memberNode->memberList.begin(), memberNode->memberList.end(), MemberListCompareByID());
-        //             break;
-        //         } else if(imPos->id == memPos->id) {
-        //             if(imPos->heartbeat > memPos->heartbeat) {
-        //                 memPos->heartbeat = imPos->heartbeat;
-        //                 memPos->timestamp = par->getcurrtime();
-        //             }
-        //             break;
-        //         }
-        //         // Check if last element
-        //         if(std::next(imPos) == memberNode->memberList.end()) {
-        //             MemberListEntry memListEntry(imPos->id,imPos->port,imPos->heartbeat,par->getcurrtime());
-        //             memberNode->memberList.push_back(memListEntry);
-        //             std::sort(memberNode->memberList.begin(), memberNode->memberList.end(), MemberListCompareByID());
-        //             break;
-        //         }
-        //     }
-        // }
-        // std::cout << "---Printing out membership list---" << std::endl;
-        // for(std::vector<MemberListEntry>::iterator myPos = memberNode->memberList.begin(); myPos != memberNode->memberList.end(); myPos++) {
-        //     std::cout << "id: " << myPos->id << " port: " << myPos->port << " heartbeat: " << myPos->heartbeat << " timestamp: " << myPos->timestamp << std::endl;
-        // }
+        for(int i = 0; i != szOfList; i++) {
+            for(std::vector<MemberListEntry>::iterator memPos = memberNode->memberList.begin(); memPos != memberNode->memberList.end(); memPos++) {
+                if(memInfo[i].id == memPos->id) {
+                    if(memInfo[i].heartbeat > memPos->heartbeat) {
+                        memPos->heartbeat = memInfo[i].heartbeat;
+                        memPos->timestamp = par->getcurrtime();
+                    }
+                    break;
+                }
+                // Check if last element
+                if(i + 1 == szOfList) {
+                    MemberListEntry memListEntry(memInfo[i].id,memInfo[i].port,memInfo[i].heartbeat,par->getcurrtime());
+                    memberNode->memberList.push_back(memListEntry);
+                    std::sort(memberNode->memberList.begin(), memberNode->memberList.end(), MemberListCompareByID());
+                    break;
+                }
+            }
+        }
+        std::cout << "---Printing out membership list---" << std::endl;
+        for(std::vector<MemberListEntry>::iterator myPos = memberNode->memberList.begin(); myPos != memberNode->memberList.end(); myPos++) {
+            std::cout << "id: " << myPos->id << " port: " << myPos->port << " heartbeat: " << myPos->heartbeat << " timestamp: " << myPos->timestamp << std::endl;
+        }
 
     }
 
