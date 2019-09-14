@@ -449,13 +449,11 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
                 }
             }
 
-            // std::cout << "---Printing out membership list---" << std::endl;
-            // std::cout << "Node: " << myMember->addr.getAddress() << std::endl;
-            // for(std::vector<MemberListEntry>::iterator myPos = memberNode->memberList.begin(); myPos != memberNode->memberList.end(); myPos++) {
-            //     std::cout << "id: " << myPos->id << " port: " << myPos->port << " heartbeat: " << myPos->heartbeat << " timestamp: " << myPos->timestamp << std::endl;
-            // }
-
-            std::cout << par->getcurrtime() << std::endl;
+            std::cout << "---Printing out membership list---" << std::endl;
+            std::cout << "Node: " << myMember->addr.getAddress() << std::endl;
+            for(std::vector<MemberListEntry>::iterator myPos = memberNode->memberList.begin(); myPos != memberNode->memberList.end(); myPos++) {
+                std::cout << "id: " << myPos->id << " port: " << myPos->port << " heartbeat: " << myPos->heartbeat << " timestamp: " << myPos->timestamp << std::endl;
+            }
 
             MemberListInfo memInfoUpdated[memberNode->memberList.size()];
             int i = 0;
@@ -469,43 +467,43 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
                 i++;
             }
 
-            if(memberNode->memberList.size() > 2) {
+        
+            std::random_shuffle(memberNode->memberList.begin(), memberNode->memberList.end());
+            Address firstAddr = myAddress(memberNode->memberList[0].id, memberNode->memberList[0].port);
+            //Address secondAddr = myAddress(memberNode->memberList[1].id, memberNode->memberList[1].port);
+            // Address thirdAddr = myAddress(memberNode->memberList[2].id, memberNode->memberList[2].port);
+            // Address fourthAddr = myAddress(memberNode->memberList[3].id, memberNode->memberList[3].port);
+            while(0 == std::strcmp(firstAddr.addr, myMember->addr.addr)) {
                 std::random_shuffle(memberNode->memberList.begin(), memberNode->memberList.end());
-                Address firstAddr = myAddress(memberNode->memberList[0].id, memberNode->memberList[0].port);
-                Address secondAddr = myAddress(memberNode->memberList[1].id, memberNode->memberList[1].port);
-                // Address thirdAddr = myAddress(memberNode->memberList[2].id, memberNode->memberList[2].port);
-                // Address fourthAddr = myAddress(memberNode->memberList[3].id, memberNode->memberList[3].port);
-                while(0 == std::strcmp(firstAddr.addr, myMember->addr.addr)) {
-                    std::random_shuffle(memberNode->memberList.begin(), memberNode->memberList.end());
-                    firstAddr = myAddress(memberNode->memberList[0].id, memberNode->memberList[0].port);
-                    secondAddr = myAddress(memberNode->memberList[1].id, memberNode->memberList[1].port);
-                    // thirdAddr = myAddress(memberNode->memberList[2].id, memberNode->memberList[2].port);
-                    // fourthAddr = myAddress(memberNode->memberList[3].id, memberNode->memberList[3].port);
-                }
-
-                size_t szOfMemList = memberNode->memberList.size();
-                size_t outgoingMsgSz = sizeof(MessageHdr) + sizeof(szOfMemList) + (sizeof(MemberListInfo) * szOfMemList);
-                MessageHdr* outgoingMsg;
-                outgoingMsg = (MessageHdr *) malloc(outgoingMsgSz * sizeof(char));
-
-                outgoingMsg->msgType = GOSSIP;
-                memcpy((char *)(outgoingMsg+1), &szOfMemList,sizeof(szOfMemList));
-                memcpy((char *)(outgoingMsg+1) + sizeof(szOfMemList), &memInfoUpdated,sizeof(MemberListInfo) * szOfMemList);
-
-                std::sort(memberNode->memberList.begin(), memberNode->memberList.end(), MemberListCompareByID());
-                // Sending my GOSSIP messages to a random nodes in my membership list
-                emulNet->ENsend(&memberNode->addr, &firstAddr, (char *)outgoingMsg, outgoingMsgSz);
-                // std::chrono::seconds timespan(2);
-                // std::this_thread::sleep_for(timespan);
-                emulNet->ENsend(&memberNode->addr, &secondAddr, (char *)outgoingMsg, outgoingMsgSz);
-                // emulNet->ENsend(&memberNode->addr, &thirdAddr, (char *)outgoingMsg, outgoingMsgSz);
-                // emulNet->ENsend(&memberNode->addr, &fourthAddr, (char *)outgoingMsg, outgoingMsgSz);
-
-                free(outgoingMsg);
+                firstAddr = myAddress(memberNode->memberList[0].id, memberNode->memberList[0].port);
+                //secondAddr = myAddress(memberNode->memberList[1].id, memberNode->memberList[1].port);
+                // thirdAddr = myAddress(memberNode->memberList[2].id, memberNode->memberList[2].port);
+                // fourthAddr = myAddress(memberNode->memberList[3].id, memberNode->memberList[3].port);
             }
 
+            size_t szOfMemList = memberNode->memberList.size();
+            size_t outgoingMsgSz = sizeof(MessageHdr) + sizeof(szOfMemList) + (sizeof(MemberListInfo) * szOfMemList);
+            MessageHdr* outgoingMsg;
+            outgoingMsg = (MessageHdr *) malloc(outgoingMsgSz * sizeof(char));
+
+            outgoingMsg->msgType = GOSSIP;
+            memcpy((char *)(outgoingMsg+1), &szOfMemList,sizeof(szOfMemList));
+            memcpy((char *)(outgoingMsg+1) + sizeof(szOfMemList), &memInfoUpdated,sizeof(MemberListInfo) * szOfMemList);
+
+            std::sort(memberNode->memberList.begin(), memberNode->memberList.end(), MemberListCompareByID());
+            // Sending my GOSSIP messages to a random nodes in my membership list
+            emulNet->ENsend(&memberNode->addr, &firstAddr, (char *)outgoingMsg, outgoingMsgSz);
+            // std::chrono::seconds timespan(2);
+            // std::this_thread::sleep_for(timespan);
+            //emulNet->ENsend(&memberNode->addr, &secondAddr, (char *)outgoingMsg, outgoingMsgSz);
+            // emulNet->ENsend(&memberNode->addr, &thirdAddr, (char *)outgoingMsg, outgoingMsgSz);
+            // emulNet->ENsend(&memberNode->addr, &fourthAddr, (char *)outgoingMsg, outgoingMsgSz);
+
+            free(outgoingMsg);
         }
     }
+
+    return true;
 }
 
 /**
