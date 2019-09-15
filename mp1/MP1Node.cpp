@@ -200,19 +200,18 @@ void MP1Node::nodeLoop() {
     // Check my messages
     checkMessages();
 
-    // Send gossip messages 
+    // Wait until sending ready to send Gossip messages only
     if(memberNode->sendMessages) {
         sendGossipMsg();
-    }
-    
 
-    // Wait until you're in the group...
-    if( !memberNode->inGroup ) {
-    	return;
-    }
+        // Wait until you're in the group...
+        if( !memberNode->inGroup ) {
+            return;
+        }
 
-    // ...then jump in and share your responsibilites!
-    nodeLoopOps();
+        // ...then jump in and share your responsibilites!
+        nodeLoopOps();
+    }
 
     return;
 }
@@ -336,13 +335,6 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
         char myAddr[6];
         memcpy(myAddr,(char *)(incomingMsg+1),sizeof(myMember->addr.addr));
 
-        int id = 0;
-        short port;
-        memcpy(&id,&myAddr[0],sizeof(int));
-        memcpy(&port,&myAddr[4],sizeof(short));
-        // Create Address for the debug log
-        Address toAddr = myAddress(id,port);
-
         size_t szOfList;
         memcpy(&szOfList,(char *)(incomingMsg+1) + sizeof(memberNode->addr.addr),sizeof(szOfList));
 
@@ -451,18 +443,6 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
                     }
                     break;
                 }
-                // // Check if last element
-                // if(std::next(memPos) == memberNode->memberList.end()) {
-                //     MemberListEntry memListEntry(memInfo[i].id,memInfo[i].port,memInfo[i].heartbeat,par->getcurrtime());
-                //     memberNode->memberList.push_back(memListEntry);
-                //     std::sort(memberNode->memberList.begin(), memberNode->memberList.end(), MemberListCompareByID());
-                //     Address tmpAddr = myAddress(memInfo[i].id,memInfo[i].port);
-                //     #ifdef DEBUGLOG
-                //         log->logNodeAdd(&memberNode->addr, &tmpAddr);
-                //     #endif
-                //      memberListUpdated = true;
-                //     break;
-                // }
             }
         }
     }
@@ -543,26 +523,10 @@ void MP1Node::sendGossipMsg() {
 
         std::sort(memberNode->memberList.begin(), memberNode->memberList.end(), MemberListCompareByID());
         // Sending my GOSSIP messages to a random nodes in my membership list
-        int size = emulNet->ENsend(&memberNode->addr, &firstAddr, (char *)outgoingMsg, outgoingMsgSz);
-        if(size == 0) {
-            memberNode->bufferFull = true;
-            std::cout << "------------------------------------------------------------- BUFFER FULL--------------------------" << std::endl;
-            std::cout << "------------------------------------------------------------- BUFFER FULL--------------------------" << std::endl;
-            std::cout << "------------------------------------------------------------- BUFFER FULL--------------------------" << std::endl;
-            std::cout << "------------------------------------------------------------- BUFFER FULL--------------------------" << std::endl;
-            std::cout << "------------------------------------------------------------- BUFFER FULL--------------------------" << std::endl;
-        }
-        size = emulNet->ENsend(&memberNode->addr, &secondAddr, (char *)outgoingMsg, outgoingMsgSz);
+        emulNet->ENsend(&memberNode->addr, &firstAddr, (char *)outgoingMsg, outgoingMsgSz);
+        emulNet->ENsend(&memberNode->addr, &secondAddr, (char *)outgoingMsg, outgoingMsgSz);
         // emulNet->ENsend(&memberNode->addr, &thirdAddr, (char *)outgoingMsg, outgoingMsgSz);
         // emulNet->ENsend(&memberNode->addr, &fourthAddr, (char *)outgoingMsg, outgoingMsgSz);
-        if(size == 0) {
-            memberNode->bufferFull = true;
-            std::cout << "------------------------------------------------------------- BUFFER FULL--------------------------" << std::endl;
-            std::cout << "------------------------------------------------------------- BUFFER FULL--------------------------" << std::endl;
-            std::cout << "------------------------------------------------------------- BUFFER FULL--------------------------" << std::endl;
-            std::cout << "------------------------------------------------------------- BUFFER FULL--------------------------" << std::endl;
-            std::cout << "------------------------------------------------------------- BUFFER FULL--------------------------" << std::endl;
-        }
         free(outgoingMsg);
     }
 }
@@ -579,6 +543,24 @@ void MP1Node::nodeLoopOps() {
 	/*
 	 * Your code goes here
 	 */
+
+    std::vector<MemberListEntry>::iterator myPos = memberNode->memberList.begin();
+
+    while(myPos != memberNode->memberList.end()) {
+        long msgDelay = par->getcurrtime() - myPos->timestamp;
+        if(msgDelay >= 20) {
+            Address removedAddr = myAddress(myPos->id, myPos->port);
+            #ifdef DEBUGLOG
+            log->logNodeRemove(&memberNode->addr, &removedAddr);
+            #endif
+            myPos = memberNode->memberList.erase(myPos);
+
+        } else {
+            myPos++;
+        }
+
+    }
+
 
     return;
 }
