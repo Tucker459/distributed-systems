@@ -1,16 +1,10 @@
-#**********************
-#*
-#* Progam Name: MP1. Membership Protocol.
-#*
-#* Current file: Grader.sh
-#* About this file: Grading Script.
-#* 
-#***********************
+#Hi
 #!/bin/sh
 
-function contains () {
+
+contains () {
   	local e
-  	for e in "${@:2}"
+  	for e in "${@2}"
 	do 
 		if [ "$e" == "$1" ]; then 
 			echo 1
