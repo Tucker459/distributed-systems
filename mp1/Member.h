@@ -110,10 +110,14 @@ public:
 	vector<MemberListEntry>::iterator myPos;
 	// Queue for failure detection messages
 	queue<q_elt> mp1q;
+	// Keep Track of position for Ordered Gossiping
+	int nodeIndex;
+	// bool to stop message if buffer is full
+	bool sendMessages;
 	/**
 	 * Constructor
 	 */
-	Member(): inited(false), inGroup(false), bFailed(false), nnb(0), heartbeat(0), pingCounter(0), timeOutCounter(0) {}
+	Member(): inited(false), inGroup(false), bFailed(false), nnb(0), heartbeat(0), pingCounter(0), timeOutCounter(0), nodeIndex(0), sendMessages(true) {}
 	// copy constructor
 	Member(const Member &anotherMember);
 	// Assignment operator overloading
