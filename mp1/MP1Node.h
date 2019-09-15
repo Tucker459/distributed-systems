@@ -99,6 +99,7 @@ public:
 	virtual ~MP1Node();
 	Address myAddress(int id, short port);
 	bool sortByID(const MemberListEntry memOne, const MemberListEntry memTwo, MemberListCompareByID());
+	void sendGossipMsg();
 };
 
 #endif /* _MP1NODE_H_ */

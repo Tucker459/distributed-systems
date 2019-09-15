@@ -126,7 +126,8 @@ int MP1Node::initThisNode(Address *joinaddr) {
 	memberNode->pingCounter = TFAIL;
 	memberNode->timeOutCounter = -1;
     memberNode->nodeIndex = id - 1;
-    memberNode->sendMessages = true;
+    memberNode->sendMessages = false;
+    memberNode->bufferFull = false;
     initMemberListTable(memberNode);
 
     return 0;
@@ -198,6 +199,12 @@ void MP1Node::nodeLoop() {
 
     // Check my messages
     checkMessages();
+
+    // Send gossip messages 
+    if(memberNode->sendMessages) {
+        sendGossipMsg();
+    }
+    
 
     // Wait until you're in the group...
     if( !memberNode->inGroup ) {
@@ -287,6 +294,7 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
         
         size_t szOfList = memberNode->memberList.size();
         if(szOfList == 10) {
+            std::cout << "Sending out to other nodes" << std::endl;
             size_t outgoingMsgSz = sizeof(MessageHdr) + sizeof(memberNode->addr.addr) + sizeof(szOfList) + (sizeof(MemberListInfo) * szOfList);
             MessageHdr* outgoingMsg;
             outgoingMsg = (MessageHdr *) malloc(outgoingMsgSz * sizeof(char));
@@ -320,6 +328,8 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
 
             free(outgoingMsg);
         }
+
+        return true;
 
     } else if(incomingMsg->msgType == JOINREP) {
 
@@ -404,15 +414,17 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
 
             free(outgoingMsg);
         }
-       
 
+        return true;
+    
     } else if(incomingMsg->msgType == GOSSIP) {
 
         // std::cout << "----------------------" << std::endl;
         // std::cout << "Received GOSSIP Message!" << std::endl;
+        memberNode->sendMessages = true;
 
         if(par->getcurrtime() % 10 == 0) {
-            memberNode->sendMessages = true;
+            memberNode->bufferFull = false;
         }
 
         size_t szOfList;
@@ -453,99 +465,106 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
                 // }
             }
         }
-        // Only Send Gossip Messages if the memList was updated & buffer size is not maxed out
-        if(memberListUpdated == true && memberNode->sendMessages == true) {
-
-            // Increase heartbeat
-            for(vector<MemberListEntry>::iterator myPos = memberNode->memberList.begin() ; myPos != memberNode->memberList.end() ; myPos++) {
-                Address tempAddr = myAddress(myPos->id, myPos->port);
-                if(0 == std::strcmp(tempAddr.addr, myMember->addr.addr)) {
-                    myPos->heartbeat = myPos->heartbeat + 1;
-                    myPos->timestamp = par->getcurrtime();
-                }
-            }
-
-            std::cout << "---Printing out membership list---" << std::endl;
-            std::cout << "Node: " << myMember->addr.getAddress() << std::endl;
-            for(std::vector<MemberListEntry>::iterator myPos = memberNode->memberList.begin(); myPos != memberNode->memberList.end(); myPos++) {
-                std::cout << "id: " << myPos->id << " port: " << myPos->port << " heartbeat: " << myPos->heartbeat << " timestamp: " << myPos->timestamp << std::endl;
-            }
-
-            MemberListInfo memInfoUpdated[memberNode->memberList.size()];
-            int i = 0;
-            for(std::vector<MemberListEntry>::iterator myPos = memberNode->memberList.begin(); myPos != memberNode->memberList.end(); myPos++) {
-                memInfoUpdated[i].id = myPos->id;
-                memInfoUpdated[i].port = myPos->port;
-                memInfoUpdated[i].heartbeat = myPos->heartbeat;
-                memInfoUpdated[i].timestamp = myPos->timestamp;
-                memInfoUpdated[i].failure = false;
-                memInfoUpdated[i].cleanup = false;
-                i++;
-            }
-
-        
-            //random_shuffle(memberNode->memberList.begin(), memberNode->memberList.end());
-            int firstIndx = memberNode->nodeIndex + 1; 
-            int secondIndx = memberNode->nodeIndex + 2; 
-            memberNode->nodeIndex = secondIndx;
-            if(firstIndx > 9) {
-                firstIndx = 0;
-                secondIndx = 1;
-                memberNode->nodeIndex = 1;
-            } else if(secondIndx > 9) {
-                secondIndx = 0;
-                memberNode->nodeIndex = 0;
-            }
-
-            Address firstAddr = myAddress(memberNode->memberList[firstIndx].id, memberNode->memberList[firstIndx].port);
-            Address secondAddr = myAddress(memberNode->memberList[secondIndx].id, memberNode->memberList[secondIndx].port);
-            // Address thirdAddr = myAddress(memberNode->memberList[2].id, memberNode->memberList[2].port);
-            // Address fourthAddr = myAddress(memberNode->memberList[3].id, memberNode->memberList[3].port);
-            // while(0 == std::strcmp(firstAddr.addr, myMember->addr.addr) || 0 == std::strcmp(secondAddr.addr, myMember->addr.addr)) {
-            //     random_shuffle(memberNode->memberList.begin(), memberNode->memberList.end());
-            //     firstAddr = myAddress(memberNode->memberList[0].id, memberNode->memberList[0].port);
-            //     secondAddr = myAddress(memberNode->memberList[1].id, memberNode->memberList[1].port);
-            //     // thirdAddr = myAddress(memberNode->memberList[2].id, memberNode->memberList[2].port);
-            //     // fourthAddr = myAddress(memberNode->memberList[3].id, memberNode->memberList[3].port);
-            // }
-
-            size_t szOfMemList = memberNode->memberList.size();
-            size_t outgoingMsgSz = sizeof(MessageHdr) + sizeof(szOfMemList) + (sizeof(MemberListInfo) * szOfMemList);
-            MessageHdr* outgoingMsg;
-            outgoingMsg = (MessageHdr *) malloc(outgoingMsgSz * sizeof(char));
-
-            outgoingMsg->msgType = GOSSIP;
-            memcpy((char *)(outgoingMsg+1), &szOfMemList,sizeof(szOfMemList));
-            memcpy((char *)(outgoingMsg+1) + sizeof(szOfMemList), &memInfoUpdated,sizeof(MemberListInfo) * szOfMemList);
-
-            std::sort(memberNode->memberList.begin(), memberNode->memberList.end(), MemberListCompareByID());
-            // Sending my GOSSIP messages to a random nodes in my membership list
-            int size = emulNet->ENsend(&memberNode->addr, &firstAddr, (char *)outgoingMsg, outgoingMsgSz);
-            if(size == 0) {
-                memberNode->sendMessages = false;
-                std::cout << "------------------------------------------------------------- BUFFER FULL--------------------------" << std::endl;
-                std::cout << "------------------------------------------------------------- BUFFER FULL--------------------------" << std::endl;
-                std::cout << "------------------------------------------------------------- BUFFER FULL--------------------------" << std::endl;
-                std::cout << "------------------------------------------------------------- BUFFER FULL--------------------------" << std::endl;
-                std::cout << "------------------------------------------------------------- BUFFER FULL--------------------------" << std::endl;
-            }
-            size = emulNet->ENsend(&memberNode->addr, &secondAddr, (char *)outgoingMsg, outgoingMsgSz);
-            // emulNet->ENsend(&memberNode->addr, &thirdAddr, (char *)outgoingMsg, outgoingMsgSz);
-            // emulNet->ENsend(&memberNode->addr, &fourthAddr, (char *)outgoingMsg, outgoingMsgSz);
-            if(size == 0) {
-                memberNode->sendMessages = false;
-                std::cout << "------------------------------------------------------------- BUFFER FULL--------------------------" << std::endl;
-                std::cout << "------------------------------------------------------------- BUFFER FULL--------------------------" << std::endl;
-                std::cout << "------------------------------------------------------------- BUFFER FULL--------------------------" << std::endl;
-                std::cout << "------------------------------------------------------------- BUFFER FULL--------------------------" << std::endl;
-                std::cout << "------------------------------------------------------------- BUFFER FULL--------------------------" << std::endl;
-            }
-
-            free(outgoingMsg);
-        }
     }
-
     return true;
+}
+
+/**
+ * FUNCTION NAME: sendGossipMsg
+ *
+ * DESCRIPTION: Send Gossip Messages Once per round
+ */
+void MP1Node::sendGossipMsg() {
+
+    // Only Send Gossip Messages if the buffer size is not full 
+    if(!memberNode->bufferFull) {
+
+        // Increase heartbeat
+        for(vector<MemberListEntry>::iterator myPos = memberNode->memberList.begin() ; myPos != memberNode->memberList.end() ; myPos++) {
+            Address tempAddr = myAddress(myPos->id, myPos->port);
+            if(0 == std::strcmp(tempAddr.addr, memberNode->addr.addr)) {
+                myPos->heartbeat = myPos->heartbeat + 1;
+                myPos->timestamp = par->getcurrtime();
+            }
+        }
+
+        std::cout << "---Printing out membership list---" << std::endl;
+        std::cout << "Node: " << memberNode->addr.getAddress() << std::endl;
+        for(std::vector<MemberListEntry>::iterator myPos = memberNode->memberList.begin(); myPos != memberNode->memberList.end(); myPos++) {
+            std::cout << "id: " << myPos->id << " port: " << myPos->port << " heartbeat: " << myPos->heartbeat << " timestamp: " << myPos->timestamp << std::endl;
+        }
+
+        MemberListInfo memInfoUpdated[memberNode->memberList.size()];
+        int i = 0;
+        for(std::vector<MemberListEntry>::iterator myPos = memberNode->memberList.begin(); myPos != memberNode->memberList.end(); myPos++) {
+            memInfoUpdated[i].id = myPos->id;
+            memInfoUpdated[i].port = myPos->port;
+            memInfoUpdated[i].heartbeat = myPos->heartbeat;
+            memInfoUpdated[i].timestamp = myPos->timestamp;
+            memInfoUpdated[i].failure = false;
+            memInfoUpdated[i].cleanup = false;
+            i++;
+        }
+
+    
+        //random_shuffle(memberNode->memberList.begin(), memberNode->memberList.end());
+        int firstIndx = memberNode->nodeIndex + 1; 
+        int secondIndx = memberNode->nodeIndex + 2; 
+        memberNode->nodeIndex = secondIndx;
+        if(firstIndx > 9) {
+            firstIndx = 0;
+            secondIndx = 1;
+            memberNode->nodeIndex = 1;
+        } else if(secondIndx > 9) {
+            secondIndx = 0;
+            memberNode->nodeIndex = 0;
+        }
+
+        Address firstAddr = myAddress(memberNode->memberList[firstIndx].id, memberNode->memberList[firstIndx].port);
+        Address secondAddr = myAddress(memberNode->memberList[secondIndx].id, memberNode->memberList[secondIndx].port);
+        // Address thirdAddr = myAddress(memberNode->memberList[2].id, memberNode->memberList[2].port);
+        // Address fourthAddr = myAddress(memberNode->memberList[3].id, memberNode->memberList[3].port);
+        // while(0 == std::strcmp(firstAddr.addr, myMember->addr.addr) || 0 == std::strcmp(secondAddr.addr, myMember->addr.addr)) {
+        //     random_shuffle(memberNode->memberList.begin(), memberNode->memberList.end());
+        //     firstAddr = myAddress(memberNode->memberList[0].id, memberNode->memberList[0].port);
+        //     secondAddr = myAddress(memberNode->memberList[1].id, memberNode->memberList[1].port);
+        //     // thirdAddr = myAddress(memberNode->memberList[2].id, memberNode->memberList[2].port);
+        //     // fourthAddr = myAddress(memberNode->memberList[3].id, memberNode->memberList[3].port);
+        // }
+
+        size_t szOfMemList = memberNode->memberList.size();
+        size_t outgoingMsgSz = sizeof(MessageHdr) + sizeof(szOfMemList) + (sizeof(MemberListInfo) * szOfMemList);
+        MessageHdr* outgoingMsg;
+        outgoingMsg = (MessageHdr *) malloc(outgoingMsgSz * sizeof(char));
+
+        outgoingMsg->msgType = GOSSIP;
+        memcpy((char *)(outgoingMsg+1), &szOfMemList,sizeof(szOfMemList));
+        memcpy((char *)(outgoingMsg+1) + sizeof(szOfMemList), &memInfoUpdated,sizeof(MemberListInfo) * szOfMemList);
+
+        std::sort(memberNode->memberList.begin(), memberNode->memberList.end(), MemberListCompareByID());
+        // Sending my GOSSIP messages to a random nodes in my membership list
+        int size = emulNet->ENsend(&memberNode->addr, &firstAddr, (char *)outgoingMsg, outgoingMsgSz);
+        if(size == 0) {
+            memberNode->bufferFull = true;
+            std::cout << "------------------------------------------------------------- BUFFER FULL--------------------------" << std::endl;
+            std::cout << "------------------------------------------------------------- BUFFER FULL--------------------------" << std::endl;
+            std::cout << "------------------------------------------------------------- BUFFER FULL--------------------------" << std::endl;
+            std::cout << "------------------------------------------------------------- BUFFER FULL--------------------------" << std::endl;
+            std::cout << "------------------------------------------------------------- BUFFER FULL--------------------------" << std::endl;
+        }
+        size = emulNet->ENsend(&memberNode->addr, &secondAddr, (char *)outgoingMsg, outgoingMsgSz);
+        // emulNet->ENsend(&memberNode->addr, &thirdAddr, (char *)outgoingMsg, outgoingMsgSz);
+        // emulNet->ENsend(&memberNode->addr, &fourthAddr, (char *)outgoingMsg, outgoingMsgSz);
+        if(size == 0) {
+            memberNode->bufferFull = true;
+            std::cout << "------------------------------------------------------------- BUFFER FULL--------------------------" << std::endl;
+            std::cout << "------------------------------------------------------------- BUFFER FULL--------------------------" << std::endl;
+            std::cout << "------------------------------------------------------------- BUFFER FULL--------------------------" << std::endl;
+            std::cout << "------------------------------------------------------------- BUFFER FULL--------------------------" << std::endl;
+            std::cout << "------------------------------------------------------------- BUFFER FULL--------------------------" << std::endl;
+        }
+        free(outgoingMsg);
+    }
 }
 
 /**

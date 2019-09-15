@@ -112,12 +112,14 @@ public:
 	queue<q_elt> mp1q;
 	// Keep Track of position for Ordered Gossiping
 	int nodeIndex;
-	// bool to stop message if buffer is full
+	// boolean indicating if the buffer is full stop sending messages
+	bool bufferFull;
+	// boolean indicating if the node is ready to send Gossip Msgs
 	bool sendMessages;
 	/**
 	 * Constructor
 	 */
-	Member(): inited(false), inGroup(false), bFailed(false), nnb(0), heartbeat(0), pingCounter(0), timeOutCounter(0), nodeIndex(0), sendMessages(true) {}
+	Member(): inited(false), inGroup(false), bFailed(false), nnb(0), heartbeat(0), pingCounter(0), timeOutCounter(0), nodeIndex(0), bufferFull(false), sendMessages(false) {}
 	// copy constructor
 	Member(const Member &anotherMember);
 	// Assignment operator overloading
