@@ -156,9 +156,6 @@ Member::Member(const Member &anotherMember) {
 	this->memberList = anotherMember.memberList;
 	this->myPos = anotherMember.myPos;
 	this->mp1q = anotherMember.mp1q;
-	this->nodeIndex = anotherMember.nodeIndex;
-	this->bufferFull = anotherMember.bufferFull;
-	this->sendMessages = anotherMember.sendMessages;
 }
 
 /**
@@ -176,9 +173,6 @@ Member& Member::operator =(const Member& anotherMember) {
 	this->memberList = anotherMember.memberList;
 	this->myPos = anotherMember.myPos;
 	this->mp1q = anotherMember.mp1q;
-	this->nodeIndex = anotherMember.nodeIndex;
-	this->bufferFull = anotherMember.bufferFull;
-	this->sendMessages = anotherMember.sendMessages;
 	
 	return *this;
 }

@@ -124,9 +124,6 @@ int MP1Node::initThisNode(Address *joinaddr) {
 	memberNode->heartbeat = 0;
 	memberNode->pingCounter = TFAIL;
 	memberNode->timeOutCounter = -1;
-    memberNode->nodeIndex = id - 1;
-    memberNode->sendMessages = false;
-    memberNode->bufferFull = false;
     initMemberListTable(memberNode);
 
     return 0;
@@ -193,9 +190,6 @@ int MP1Node::finishUpThisNode(){
 	memberNode->heartbeat = 0;
 	memberNode->pingCounter = TFAIL;
 	memberNode->timeOutCounter = -1;
-    memberNode->nodeIndex = id - 1;
-    memberNode->sendMessages = false;
-    memberNode->bufferFull = false;
     initMemberListTable(memberNode);
 
     return 0;
@@ -216,7 +210,7 @@ void MP1Node::nodeLoop() {
     checkMessages();
 
     // Wait until sending ready to send Gossip messages only
-    if(memberNode->sendMessages) {
+    if(memberNode->pingCounter == 1) {
         sendGossipMsg();
 
         // Wait until you're in the group...
@@ -403,11 +397,7 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
     } else if(incomingMsg->msgType == GOSSIP) {
 
         // Node is now ready to send Gossip Messages to other nodes.
-        memberNode->sendMessages = true;
-
-        if(par->getcurrtime() % 10 == 0) {
-            memberNode->bufferFull = false;
-        }
+        memberNode->pingCounter = 1;
 
         size_t szOfList;
         memcpy(&szOfList,(char *)(incomingMsg+1),sizeof(szOfList));
@@ -442,66 +432,56 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
  */
 void MP1Node::sendGossipMsg() {
 
-    // Only Send Gossip Messages if the buffer size is not full 
-    if(!memberNode->bufferFull) {
-
-        // Increase heartbeat
-        for(vector<MemberListEntry>::iterator myPos = memberNode->memberList.begin() ; myPos != memberNode->memberList.end() ; myPos++) {
-            Address tempAddr = myAddress(myPos->id, myPos->port);
-            if(0 == std::strcmp(tempAddr.addr, memberNode->addr.addr)) {
-                myPos->heartbeat = myPos->heartbeat + 1;
-                myPos->timestamp = par->getcurrtime();
-            }
+    // Increase heartbeat
+    for(vector<MemberListEntry>::iterator myPos = memberNode->memberList.begin() ; myPos != memberNode->memberList.end() ; myPos++) {
+        Address tempAddr = myAddress(myPos->id, myPos->port);
+        if(0 == std::strcmp(tempAddr.addr, memberNode->addr.addr)) {
+            myPos->heartbeat = myPos->heartbeat + 1;
+            myPos->timestamp = par->getcurrtime();
         }
-
-        // std::cout << "---Printing out membership list---" << std::endl;
-        // std::cout << "Node: " << memberNode->addr.getAddress() << std::endl;
-        // for(std::vector<MemberListEntry>::iterator myPos = memberNode->memberList.begin(); myPos != memberNode->memberList.end(); myPos++) {
-        //     std::cout << "id: " << myPos->id << " port: " << myPos->port << " heartbeat: " << myPos->heartbeat << " timestamp: " << myPos->timestamp << std::endl;
-        // }
-
-        MemberListInfo memInfoUpdated[memberNode->memberList.size()];
-        int i = 0;
-        for(std::vector<MemberListEntry>::iterator myPos = memberNode->memberList.begin(); myPos != memberNode->memberList.end(); myPos++) {
-            memInfoUpdated[i].id = myPos->id;
-            memInfoUpdated[i].port = myPos->port;
-            memInfoUpdated[i].heartbeat = myPos->heartbeat;
-            memInfoUpdated[i].timestamp = myPos->timestamp;
-            i++;
-        }
-
-        // Logic to do round-robin sending of gossip messages
-        int firstIndx = memberNode->nodeIndex + 1; 
-        int secondIndx = memberNode->nodeIndex + 2; 
-        memberNode->nodeIndex = secondIndx;
-        if(firstIndx > 9) {
-            firstIndx = 0;
-            secondIndx = 1;
-            memberNode->nodeIndex = 1;
-        } else if(secondIndx > 9) {
-            secondIndx = 0;
-            memberNode->nodeIndex = 0;
-        }
-
-        Address firstAddr = myAddress(memberNode->memberList[firstIndx].id, memberNode->memberList[firstIndx].port);
-        Address secondAddr = myAddress(memberNode->memberList[secondIndx].id, memberNode->memberList[secondIndx].port);
-
-        size_t szOfMemList = memberNode->memberList.size();
-        size_t outgoingMsgSz = sizeof(MessageHdr) + sizeof(szOfMemList) + (sizeof(MemberListInfo) * szOfMemList);
-        MessageHdr* outgoingMsg;
-        outgoingMsg = (MessageHdr *) malloc(outgoingMsgSz * sizeof(char));
-
-        outgoingMsg->msgType = GOSSIP;
-        memcpy((char *)(outgoingMsg+1), &szOfMemList,sizeof(szOfMemList));
-        memcpy((char *)(outgoingMsg+1) + sizeof(szOfMemList), &memInfoUpdated,sizeof(MemberListInfo) * szOfMemList);
-
-        std::sort(memberNode->memberList.begin(), memberNode->memberList.end(), MemberListCompareByID());
-
-        // Sending my GOSSIP messages to nodes in my membership list
-        emulNet->ENsend(&memberNode->addr, &firstAddr, (char *)outgoingMsg, outgoingMsgSz);
-        emulNet->ENsend(&memberNode->addr, &secondAddr, (char *)outgoingMsg, outgoingMsgSz);
-        free(outgoingMsg);
     }
+
+    // std::cout << "---Printing out membership list---" << std::endl;
+    // std::cout << "Node: " << memberNode->addr.getAddress() << std::endl;
+    // for(std::vector<MemberListEntry>::iterator myPos = memberNode->memberList.begin(); myPos != memberNode->memberList.end(); myPos++) {
+    //     std::cout << "id: " << myPos->id << " port: " << myPos->port << " heartbeat: " << myPos->heartbeat << " timestamp: " << myPos->timestamp << std::endl;
+    // }
+
+    MemberListInfo memInfoUpdated[memberNode->memberList.size()];
+    int i = 0;
+    for(std::vector<MemberListEntry>::iterator myPos = memberNode->memberList.begin(); myPos != memberNode->memberList.end(); myPos++) {
+        memInfoUpdated[i].id = myPos->id;
+        memInfoUpdated[i].port = myPos->port;
+        memInfoUpdated[i].heartbeat = myPos->heartbeat;
+        memInfoUpdated[i].timestamp = myPos->timestamp;
+        i++;
+    }
+
+    // Logic for selecting random nodes to send gossip messages
+    std::random_shuffle(memberNode->memberList.begin(), memberNode->memberList.end());
+    Address firstAddr = myAddress(memberNode->memberList[0].id, memberNode->memberList[0].port);
+    Address secondAddr = myAddress(memberNode->memberList[1].id, memberNode->memberList[1].port);
+    while(0 == strcmp(firstAddr.addr, memberNode->addr.addr) || 0 == strcmp(secondAddr.addr, memberNode->addr.addr)) {
+        std::random_shuffle(memberNode->memberList.begin(), memberNode->memberList.end());
+        firstAddr = myAddress(memberNode->memberList[0].id, memberNode->memberList[0].port);
+        secondAddr = myAddress(memberNode->memberList[1].id, memberNode->memberList[1].port);
+    }
+
+    size_t szOfMemList = memberNode->memberList.size();
+    size_t outgoingMsgSz = sizeof(MessageHdr) + sizeof(szOfMemList) + (sizeof(MemberListInfo) * szOfMemList);
+    MessageHdr* outgoingMsg;
+    outgoingMsg = (MessageHdr *) malloc(outgoingMsgSz * sizeof(char));
+
+    outgoingMsg->msgType = GOSSIP;
+    memcpy((char *)(outgoingMsg+1), &szOfMemList,sizeof(szOfMemList));
+    memcpy((char *)(outgoingMsg+1) + sizeof(szOfMemList), &memInfoUpdated,sizeof(MemberListInfo) * szOfMemList);
+
+    std::sort(memberNode->memberList.begin(), memberNode->memberList.end(), MemberListCompareByID());
+
+    // Sending my GOSSIP messages to nodes in my membership list
+    emulNet->ENsend(&memberNode->addr, &firstAddr, (char *)outgoingMsg, outgoingMsgSz);
+    emulNet->ENsend(&memberNode->addr, &secondAddr, (char *)outgoingMsg, outgoingMsgSz);
+    free(outgoingMsg);
 }
 
 /**
