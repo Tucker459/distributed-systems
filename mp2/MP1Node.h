@@ -31,7 +31,8 @@
 enum MsgTypes{
     JOINREQ,
     JOINREP,
-    DUMMYLASTMSGTYPE
+    GOSSIP,
+	BROADCAST
 };
 
 /**
@@ -42,6 +43,26 @@ enum MsgTypes{
 typedef struct MessageHdr {
 	enum MsgTypes msgType;
 }MessageHdr;
+
+typedef struct MemberListCompareByID {
+	bool operator ()(const MemberListEntry memOne, const MemberListEntry memTwo) {
+		return (memOne.id < memTwo.id);
+	}
+}MemberListCompareByID;
+
+/**
+ * STRUCT NAME: MemberListInfo
+ *
+ * DESCRIPTION: Member List Information to be sent to other nodes
+ */
+typedef struct MemberListInfo {
+	int id;
+	short port;
+	long heartbeat;
+	long timestamp;
+	bool failure;
+	bool cleanup;
+}MemberListInfo;
 
 /**
  * CLASS NAME: MP1Node
@@ -76,6 +97,9 @@ public:
 	void initMemberListTable(Member *memberNode);
 	void printAddress(Address *addr);
 	virtual ~MP1Node();
+	Address myAddress(int id, short port);
+	bool sortByID(const MemberListEntry memOne, const MemberListEntry memTwo, MemberListCompareByID());
+	void sendGossipMsg();
 };
 
 #endif /* _MP1NODE_H_ */
