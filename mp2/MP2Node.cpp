@@ -51,6 +51,9 @@ void MP2Node::updateRing() {
 	 */
 	// Sort the list based on the hashCode
 	sort(curMemList.begin(), curMemList.end());
+	for(unsigned int i = 0; i < curMemList.size(); i++) {
+		ring.emplace_back(curMemList.at(i));
+	}
 
 
 	/*
