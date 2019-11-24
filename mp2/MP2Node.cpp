@@ -51,8 +51,12 @@ void MP2Node::updateRing() {
 	 */
 	// Sort the list based on the hashCode
 	sort(curMemList.begin(), curMemList.end());
-	for(unsigned int i = 0; i < curMemList.size(); i++) {
+	if(ring.size() > 0 && ring.size() != curMemList.size()) {
+		change = true;
+	} else {
+		for(unsigned int i = 0; i < curMemList.size(); i++) {
 		ring.emplace_back(curMemList.at(i));
+		}
 	}
 
 
@@ -60,10 +64,13 @@ void MP2Node::updateRing() {
 	 * Step 3: Run the stabilization protocol IF REQUIRED
 	 */
 	// Run stabilization protocol if the hash table size is greater than zero and if there has been a changed in the ring
+	if(ht->currentSize() > 0 && change) {
+		stabilizationProtocol();
+	}
 }
 
 /**
- * FUNCTION NAME: getMemberhipList
+ * FUNCTION NAME: getMembershipList
  *
  * DESCRIPTION: This function goes through the membership list from the Membership protocol/MP1 and
  * 				i) generates the hash code for each member
@@ -114,6 +121,26 @@ void MP2Node::clientCreate(string key, string value) {
 	/*
 	 * Implement this
 	 */
+	MessageType msgType = CREATE;
+
+	vector<Node> replicaNodes;
+	replicaNodes = findNodes(key);
+
+	for(int i = 0; i <= replicaNodes.size(); i++){
+		string msg;
+		ReplicaType repType;
+		if(i == 0) {
+			repType = PRIMARY;
+		}else if(i == 1) {
+			repType = SECONDARY;
+		} else {
+			repType = TERTIARY;
+		}
+		
+		msg = Message(g_transID,this->memberNode->addr, msgType, key, value, repType).toString();
+		emulNet->ENsend(&(this->memberNode->addr), replicaNodes.at(i).getAddress(), msg);
+		g_transID++;
+	}
 }
 
 /**
@@ -174,6 +201,12 @@ bool MP2Node::createKeyValue(string key, string value, ReplicaType replica) {
 	 * Implement this
 	 */
 	// Insert key, value, replicaType into the hash table
+	string entryValue;
+	bool created;
+	entryValue = Entry(value, par->getcurrtime(), replica).convertToString();
+	created = ht->create(key, entryValue);
+
+	return created;
 }
 
 /**
@@ -189,6 +222,10 @@ string MP2Node::readKey(string key) {
 	 * Implement this
 	 */
 	// Read key from local hash table and return value
+	string val;
+	val = ht->read(key);
+
+	return val;
 }
 
 /**
@@ -204,6 +241,13 @@ bool MP2Node::updateKeyValue(string key, string value, ReplicaType replica) {
 	 * Implement this
 	 */
 	// Update key in local hash table and return true or false
+
+	bool updatedKey;
+	string entryVal;
+	entryVal = Entry(value, par->getcurrtime(), replica).convertToString();
+	updatedKey = ht->update(key,entryVal);
+
+	return updatedKey;
 }
 
 /**
@@ -219,6 +263,10 @@ bool MP2Node::deletekey(string key) {
 	 * Implement this
 	 */
 	// Delete the key from the local hash table
+	bool deletedKey;
+	deletedKey = ht->deleteKey(key);
+
+	return deletedKey;
 }
 
 /**
@@ -249,12 +297,28 @@ void MP2Node::checkMessages() {
 		size = memberNode->mp2q.front().size;
 		memberNode->mp2q.pop();
 
-		string message(data, data + size);
+		string message(data, data + size); // C++ ; Calling  
 
 		/*
 		 * Handle the message types here
 		 */
+		
+		MsgHdr* incomingMsg;
+    	incomingMsg = (MsgHdr *)data;
 
+		if(incomingMsg->msgType == CREATE) {
+
+		}else if(incomingMsg->msgType == UPDATE) {
+
+		}else if(incomingMsg->msgType == READ) {
+
+		}else if(incomingMsg->msgType == DELETE) {
+
+		}else if(incomingMsg->msgType == REPLY) {
+
+		}else {
+
+		}
 	}
 
 	/*
@@ -331,4 +395,9 @@ void MP2Node::stabilizationProtocol() {
 	/*
 	 * Implement this
 	 */
+
+
+
+	// Check if ht is equal to empty string 
+	// clientCreate everything 
 }
