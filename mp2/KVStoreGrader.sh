@@ -87,6 +87,10 @@ create_count=`grep -i "${CREATE_OPERATION}" dbg.log | wc -l`
 create_success_count=`grep -i "${CREATE_SUCCESS}" dbg.log | wc -l`
 expected_count=$(( ${create_count} * ${RFPLUSONE} ))
 
+echo "Create Count:" ${create_count}
+echo "Create Success Count:" ${create_success_count}
+echo "Expected Count:" ${expected_count}
+
 if [ ${create_success_count} -ne ${expected_count} ]
 then 
 	CREATE_TEST_STATUS="${FAILURE}"
@@ -95,6 +99,7 @@ else
 	for key in ${keys}
 	do 
 		key_create_success_count=`grep -i "${CREATE_SUCCESS}" dbg.log | grep "${key}" | wc -l`
+		echo "Key Create Success Count:" ${key_create_success_count}
 		if [ "${key_create_success_count}" -ne "${RFPLUSONE}" ]
 		then
 			CREATE_TEST_STATUS="${FAILURE}"
@@ -107,6 +112,10 @@ if [ "${CREATE_TEST_STATUS}" -eq "${SUCCESS}" ]
 then
 	CREATE_TEST_SCORE=3	
 fi
+
+echo "RFPLUSONE:" ${RFPLUSONE}
+echo "Create Test Status:" ${CREATE_TEST_STATUS}
+echo "Create Test Score:" ${CREATE_TEST_SCORE}
 
 # Display score
 echo "TEST 1 SCORE..................: ${CREATE_TEST_SCORE} / 3"

@@ -126,7 +126,7 @@ void MP2Node::clientCreate(string key, string value) {
 	vector<Node> replicaNodes;
 	replicaNodes = findNodes(key);
 
-	for(int i = 0; i <= replicaNodes.size(); i++){
+	for(int i = 0; i < replicaNodes.size(); i++){
 		string msg;
 		ReplicaType repType;
 		if(i == 0) {
@@ -156,6 +156,27 @@ void MP2Node::clientRead(string key){
 	/*
 	 * Implement this
 	 */
+
+	MessageType msgType = READ;
+
+	vector<Node> replicaNodes;
+	replicaNodes = findNodes(key);
+
+	for(int i = 0; i < replicaNodes.size(); i++){
+		string msg;
+		ReplicaType repType;
+		if(i == 0) {
+			repType = PRIMARY;
+		}else if(i == 1) {
+			repType = SECONDARY;
+		} else {
+			repType = TERTIARY;
+		}
+
+		msg = Message(g_transID,this->memberNode->addr, msgType, key).toString();
+		emulNet->ENsend(&(this->memberNode->addr), replicaNodes.at(i).getAddress(), msg);
+		g_transID++;
+	}
 }
 
 /**
@@ -171,6 +192,27 @@ void MP2Node::clientUpdate(string key, string value){
 	/*
 	 * Implement this
 	 */
+
+	MessageType msgType = UPDATE;
+
+	vector<Node> replicaNodes;
+	replicaNodes = findNodes(key);
+
+	for(int i = 0; i < replicaNodes.size(); i++){
+		string msg;
+		ReplicaType repType;
+		if(i == 0) {
+			repType = PRIMARY;
+		}else if(i == 1) {
+			repType = SECONDARY;
+		} else {
+			repType = TERTIARY;
+		}
+
+		msg = Message(g_transID,this->memberNode->addr, msgType, key, value, repType).toString();
+		emulNet->ENsend(&(this->memberNode->addr), replicaNodes.at(i).getAddress(), msg);
+		g_transID++;
+	}
 }
 
 /**
@@ -186,6 +228,27 @@ void MP2Node::clientDelete(string key){
 	/*
 	 * Implement this
 	 */
+
+	MessageType msgType = DELETE;
+
+	vector<Node> replicaNodes;
+	replicaNodes = findNodes(key);
+
+	for(int i = 0; i < replicaNodes.size(); i++){
+		string msg;
+		ReplicaType repType;
+		if(i == 0) {
+			repType = PRIMARY;
+		}else if(i == 1) {
+			repType = SECONDARY;
+		} else {
+			repType = TERTIARY;
+		}
+
+		msg = Message(g_transID,this->memberNode->addr, msgType, key).toString();
+		emulNet->ENsend(&(this->memberNode->addr), replicaNodes.at(i).getAddress(), msg);
+		g_transID++;
+	}
 }
 
 /**
@@ -207,9 +270,9 @@ bool MP2Node::createKeyValue(string key, string value, ReplicaType replica) {
 	created = ht->create(key, entryValue);
 
 	if(created) {
-		log->logCreateSuccess(&(memberNode->addr), true, g_transID, key, value);
+		log->logCreateSuccess(&(memberNode->addr), false, g_transID, key, value);
 	} else {
-		log->logCreateFail(&(memberNode->addr), true, g_transID, key, value);
+		log->logCreateFail(&(memberNode->addr), false, g_transID, key, value);
 	}
 	g_transID++;
 
@@ -311,18 +374,38 @@ void MP2Node::checkMessages() {
 		 */
 		
 		Message recvMsg(message);
-		switch(recvMsg.type) {
-			case CREATE:
-			  
-			case UPDATE:
 
-			case READ:
+		if(recvMsg.type == CREATE) {
+			bool createdKey = createKeyValue(recvMsg.key, recvMsg.value, recvMsg.replica);
+			MessageType replyMsgType = REPLY;
+			if(createdKey) {
+				string repMsg = Message(g_transID,memberNode->addr,replyMsgType,true).toString();
+				emulNet->ENsend(&(memberNode->addr),&(recvMsg.fromAddr),repMsg);
+			} else {
+				string repMsg = Message(g_transID,memberNode->addr,replyMsgType,false).toString();
+				emulNet->ENsend(&(memberNode->addr),&(recvMsg.fromAddr),repMsg);
+			}
+			g_transID++;
+		} else if(recvMsg.type == UPDATE) {
 
-			case DELETE:
+		} else if(recvMsg.type == READ) {
 
-			case REPLY:
+		} else if(recvMsg.type == DELETE) {
 
-			default:
+		} else if(recvMsg.type == READREPLY) {
+
+		} else {
+			if(recvMsg.success) {
+				quorumSuccessCnt++
+				if(quorumSuccessCnt == 2) {
+					log->logCreateSuccess();
+				}
+			} else {
+				quorumFailureCnt++
+				if(quorumFailureCnt == 2) {
+					log->logCreateFailure();
+				}
+			}
 
 		}
 	}

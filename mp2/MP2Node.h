@@ -47,6 +47,15 @@ private:
 	EmulNet * emulNet;
 	// Object of Log
 	Log * log;
+	// Quorum Sucess Count
+	int quorumSuccessCnt;
+	// Quorum Failure Count
+	int quorumFailureCnt; 
+	// readQuorum Success Count
+	int readQuorumSuccessCnt;
+	// readQuorum Failure Count
+	int readQuorumFailureCnt;
+
 
 public:
 	MP2Node(Member *memberNode, Params *par, EmulNet *emulNet, Log *log, Address *addressOfMember);
