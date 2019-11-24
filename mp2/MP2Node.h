@@ -19,16 +19,6 @@
 #include "Message.h"
 #include "Queue.h"
 
-
-/**
- * STRUCT NAME: MsgHdr
- *
- * DESCRIPTION: message type
- */
-typedef struct MsgHdr {
-	enum MessageType msgType;
-}MsgHdr;
-
 /**
  * CLASS NAME: MP2Node
  *

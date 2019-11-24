@@ -136,7 +136,7 @@ void MP2Node::clientCreate(string key, string value) {
 		} else {
 			repType = TERTIARY;
 		}
-		
+
 		msg = Message(g_transID,this->memberNode->addr, msgType, key, value, repType).toString();
 		emulNet->ENsend(&(this->memberNode->addr), replicaNodes.at(i).getAddress(), msg);
 		g_transID++;
@@ -205,6 +205,13 @@ bool MP2Node::createKeyValue(string key, string value, ReplicaType replica) {
 	bool created;
 	entryValue = Entry(value, par->getcurrtime(), replica).convertToString();
 	created = ht->create(key, entryValue);
+
+	if(created) {
+		log->logCreateSuccess(&(memberNode->addr), true, g_transID, key, value);
+	} else {
+		log->logCreateFail(&(memberNode->addr), true, g_transID, key, value);
+	}
+	g_transID++;
 
 	return created;
 }
@@ -303,20 +310,19 @@ void MP2Node::checkMessages() {
 		 * Handle the message types here
 		 */
 		
-		MsgHdr* incomingMsg;
-    	incomingMsg = (MsgHdr *)data;
+		Message recvMsg(message);
+		switch(recvMsg.type) {
+			case CREATE:
+			  
+			case UPDATE:
 
-		if(incomingMsg->msgType == CREATE) {
+			case READ:
 
-		}else if(incomingMsg->msgType == UPDATE) {
+			case DELETE:
 
-		}else if(incomingMsg->msgType == READ) {
+			case REPLY:
 
-		}else if(incomingMsg->msgType == DELETE) {
-
-		}else if(incomingMsg->msgType == REPLY) {
-
-		}else {
+			default:
 
 		}
 	}
