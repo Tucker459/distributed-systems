@@ -4,6 +4,7 @@
  * DESCRIPTION: MP2Node class definition
  **********************************/
 #include "MP2Node.h"
+#include <stack>
 
 /**
  * constructor
@@ -23,6 +24,128 @@ MP2Node::MP2Node(Member *memberNode, Params *par, EmulNet * emulNet, Log * log, 
 MP2Node::~MP2Node() {
 	delete ht;
 	delete memberNode;
+}
+
+/**
+ * FUNCTION NAME: combine
+ * 
+ * DESCRIPTION: Combines two integers together
+ */
+int MP2Node::combine(int integer1, int integer2) {
+	if(integer2 == 0) {
+		integer2 = 1000;
+	}
+
+    int times = 1;
+    while (times <= integer2) {
+		times *= 10;
+	}
+
+	quorumInfo.createTransID = integer2; 
+    return integer1*times + integer2;
+}
+
+/**
+ * FUNCTION NAME: splitInteger
+ * 
+ * DESCRIPTION: Split integer into separate digits
+ */
+stack<int> MP2Node::splitInteger(Message recvMsg) {
+	stack<int> digits;
+	int num = recvMsg.transID;
+	while( num > 0)
+	{
+		digits.push(num % 10);
+		num = num / 10;
+	}
+
+	return digits;
+}
+
+/**
+ * FUNCTION NAME: sndCoordinatorMsg
+ * 
+ * DESCRIPTION: Sends the Coordinator's Failure or Success Message
+ */
+void MP2Node::sndCoordinatorMsg(Message recvMsg, int replyMsgType) {
+	switch(replyMsgType) {
+		case 1:
+		  if(recvMsg.transID != quorumInfo.cachedCreateTransID) {
+			  quorumInfo.quorumSuccessCnt = 0;
+			  quorumInfo.quorumFailureCnt = 0;
+		  }
+		  break;
+
+		case 2:
+		  if(recvMsg.transID != quorumInfo.cachedCreateTransID) {
+			  quorumInfo.quorumSuccessCnt = 0;
+			  quorumInfo.quorumFailureCnt = 0;
+		  }
+		  break;
+
+		case 3:
+          if(recvMsg.transID != quorumInfo.cachedCreateTransID) {
+			  quorumInfo.quorumSuccessCnt = 0;
+			  quorumInfo.quorumFailureCnt = 0;
+		  }
+		default:
+		   if(recvMsg.transID != quorumInfo.cachedCreateTransID) {
+			   quorumInfo.quorumSuccessCnt = 0;
+			   quorumInfo.quorumFailureCnt = 0;
+		   }
+	}
+	
+
+	if(recvMsg.success) {
+		quorumInfo.quorumSuccessCnt++;
+		if(quorumInfo.quorumSuccessCnt == 2) {
+			sndMsg(recvMsg,replyMsgType,true);
+		}
+	} else {
+		quorumInfo.quorumFailureCnt++;
+		if(quorumInfo.quorumFailureCnt == 2) {
+			sndMsg(recvMsg,replyMsgType,false);
+		}
+	}
+}
+
+void MP2Node::sndMsg(Message recvMsg, int replyMsgType, bool isSuccessful) {
+	switch(replyMsgType) {
+		case 1:
+		  if(isSuccessful) {
+			  log->logCreateSuccess(&(memberNode->addr),true,recvMsg.transID,recvMsg.key,recvMsg.value);
+		  } else {
+			  log->logCreateFail(&(memberNode->addr),true,recvMsg.transID,recvMsg.key,recvMsg.value);
+		  }
+		  quorumInfo.cachedCreateTransID = recvMsg.transID;
+		  break;
+
+		case 2:
+		  if(isSuccessful) {
+			  log->logCreateSuccess(&(memberNode->addr),true,recvMsg.transID,recvMsg.key,recvMsg.value);
+		  } else {
+			  log->logCreateFail(&(memberNode->addr),true,recvMsg.transID,recvMsg.key,recvMsg.value);
+		  }
+		  quorumInfo.cachedCreateTransID = recvMsg.transID;
+		  break;
+
+		case 3:
+		  if(isSuccessful) {
+			  log->logCreateSuccess(&(memberNode->addr),true,recvMsg.transID,recvMsg.key,recvMsg.value);
+		  } else {
+			  log->logCreateFail(&(memberNode->addr),true,recvMsg.transID,recvMsg.key,recvMsg.value);
+		  }
+		  quorumInfo.cachedCreateTransID = recvMsg.transID;
+		  break;
+
+		default:
+		  if(isSuccessful) {
+			  log->logCreateSuccess(&(memberNode->addr),true,recvMsg.transID,recvMsg.key,recvMsg.value);
+		  } else {
+			  log->logCreateFail(&(memberNode->addr),true,recvMsg.transID,recvMsg.key,recvMsg.value);
+		  }
+		  quorumInfo.cachedCreateTransID = recvMsg.transID;
+	}
 }
 
 /**
@@ -126,8 +249,9 @@ void MP2Node::clientCreate(string key, string value) {
 	vector<Node> replicaNodes;
 	replicaNodes = findNodes(key);
 	int transID = 1;
-	createTransID = combine(transID,createTransID);
+	int combinedNum = combine(transID,quorumInfo.createTransID);
 
+	//std::cout << "memberNode Info: " << memberNode->addr.getAddress() << " combined number: " << combinedNum << std::endl;
 
 	for(int i = 0; i < replicaNodes.size(); i++){
 		string msg;
@@ -140,9 +264,10 @@ void MP2Node::clientCreate(string key, string value) {
 			repType = TERTIARY;
 		}
 
-		msg = Message(g_transID,this->memberNode->addr, msgType, key, value, repType).toString();
+		msg = Message(combinedNum,this->memberNode->addr, msgType, key, value, repType).toString();
 		emulNet->ENsend(&(this->memberNode->addr), replicaNodes.at(i).getAddress(), msg);
 	}
+	quorumInfo.createTransID++;
 }
 
 /**
@@ -380,10 +505,10 @@ void MP2Node::checkMessages() {
 			bool createdKey = createKeyValue(recvMsg.key, recvMsg.value, recvMsg.replica);
 			MessageType replyMsgType = REPLY;
 			if(createdKey) {
-				string repMsg = Message(g_transID,memberNode->addr,replyMsgType,true).toString();
+				string repMsg = Message(recvMsg.transID,memberNode->addr,replyMsgType,true).toString();
 				emulNet->ENsend(&(memberNode->addr),&(recvMsg.fromAddr),repMsg);
 			} else {
-				string repMsg = Message(g_transID,memberNode->addr,replyMsgType,false).toString();
+				string repMsg = Message(recvMsg.transID,memberNode->addr,replyMsgType,false).toString();
 				emulNet->ENsend(&(memberNode->addr),&(recvMsg.fromAddr),repMsg);
 			}
 			
@@ -396,28 +521,17 @@ void MP2Node::checkMessages() {
 		} else if(recvMsg.type == READREPLY) {
 
 		} else {
-			if(g_transID == 10) {
-				if(recvMsg.success){
-					quorumSuccessCnt++;
-					if(quorumSuccessCnt % 2 == 0){
-						log->logCreateSuccess(&(memberNode->addr),true,g_transID,recvMsg.key,recvMsg.value);
-					}
-				} else {
-					quorumFailureCnt++;
-					if(quorumFailureCnt % 2 == 0){
-						log->logCreateFail(&(memberNode->addr),true,g_transID,recvMsg.key,recvMsg.value);
-					}
-				}
-			} else if (g_transID == 20) {
 
-			} else if(g_transID == 30) {
-
-			} else if(g_transID == 40) {
-
+			stack<int> digits = splitInteger(recvMsg);
+			if(digits.top() == 1) {
+				sndCoordinatorMsg(recvMsg,digits.top());
+			} else if(digits.top() == 2) {
+				sndCoordinatorMsg(recvMsg,digits.top());
+			} else if(digits.top() == 3) {
+				sndCoordinatorMsg(recvMsg,digits.top());
+			} else {
+				sndCoordinatorMsg(recvMsg,digits.top());
 			}
-			
-
-			g_transID++;
 		}
 	}
 

@@ -18,6 +18,37 @@
 #include "Params.h"
 #include "Message.h"
 #include "Queue.h"
+#include <stack>
+
+/**
+ * Struct Name: quorum
+ */
+typedef struct quorum_attr {
+	// Quorum Sucess Count
+	int quorumSuccessCnt;
+	// Quorum Failure Count
+	int quorumFailureCnt; 
+	// readQuorum Success Count
+	int readQuorumSuccessCnt;
+	// readQuorum Failure Count
+	int readQuorumFailureCnt;
+	// createTransID
+	int createTransID;
+	// cachedCreateTransID
+	int cachedCreateTransID;
+	// readTransID
+	int readTransID;
+	// cachedReadTransID
+	int cachedReadTransID;
+	// updateTransID
+	int updateTransID;
+	// cachedUpdateTransID
+	int cachedUpdateTransID;
+	// deleteTransID;
+	int deleteTransID;
+	// cachedDeleteTransID
+	int cachedDeleteTransID;
+}quorum_attr;
 
 /**
  * CLASS NAME: MP2Node
@@ -47,26 +78,9 @@ private:
 	EmulNet * emulNet;
 	// Object of Log
 	Log * log;
-	// Quorum Sucess Count
-	int quorumSuccessCnt;
-	// Quorum Failure Count
-	int quorumFailureCnt; 
-	// readQuorum Success Count
-	int readQuorumSuccessCnt;
-	// readQuorum Failure Count
-	int readQuorumFailureCnt;
-	// Sent Success Message From Coordinator 
-	bool sentSuccessMsg;
-	// Sent Failure Message From Coordinator
-	bool sentFailureMsg;
-	// createTransID
-	int createTransID;
-	// readTransID
-	int readTransID;
-	// updateTransID
-	int updateTransID;
-	// deleteTransID;
-	int deleteTransID;
+	// Holds Information related to reaching Quorum
+	quorum_attr quorumInfo;
+	
 
 
 public:
@@ -77,6 +91,15 @@ public:
 
 	// TransIDs Combine Function
 	int combine(int integer1, int integer2);
+
+	// Split Integer
+	stack<int> splitInteger(Message recvMsg);
+
+	// Send Coordinator Success or Failure Msg 
+	void sndCoordinatorMsg(Message recvMsg, int replyMsgType);
+
+	// Send Coordinator Message based on Message Type
+	void sndMsg(Message recvMsg, int replyMsgType, bool isSuccessful);
 
 	// ring functionalities
 	void updateRing();
