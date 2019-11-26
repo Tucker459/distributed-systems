@@ -55,6 +55,18 @@ private:
 	int readQuorumSuccessCnt;
 	// readQuorum Failure Count
 	int readQuorumFailureCnt;
+	// Sent Success Message From Coordinator 
+	bool sentSuccessMsg;
+	// Sent Failure Message From Coordinator
+	bool sentFailureMsg;
+	// createTransID
+	int createTransID;
+	// readTransID
+	int readTransID;
+	// updateTransID
+	int updateTransID;
+	// deleteTransID;
+	int deleteTransID;
 
 
 public:
@@ -62,6 +74,9 @@ public:
 	Member * getMemberNode() {
 		return this->memberNode;
 	}
+
+	// TransIDs Combine Function
+	int combine(int integer1, int integer2);
 
 	// ring functionalities
 	void updateRing();

@@ -125,6 +125,9 @@ void MP2Node::clientCreate(string key, string value) {
 
 	vector<Node> replicaNodes;
 	replicaNodes = findNodes(key);
+	int transID = 1;
+	createTransID = combine(transID,createTransID);
+
 
 	for(int i = 0; i < replicaNodes.size(); i++){
 		string msg;
@@ -139,7 +142,6 @@ void MP2Node::clientCreate(string key, string value) {
 
 		msg = Message(g_transID,this->memberNode->addr, msgType, key, value, repType).toString();
 		emulNet->ENsend(&(this->memberNode->addr), replicaNodes.at(i).getAddress(), msg);
-		g_transID++;
 	}
 }
 
@@ -161,6 +163,7 @@ void MP2Node::clientRead(string key){
 
 	vector<Node> replicaNodes;
 	replicaNodes = findNodes(key);
+	g_transID = 0;
 
 	for(int i = 0; i < replicaNodes.size(); i++){
 		string msg;
@@ -175,7 +178,6 @@ void MP2Node::clientRead(string key){
 
 		msg = Message(g_transID,this->memberNode->addr, msgType, key).toString();
 		emulNet->ENsend(&(this->memberNode->addr), replicaNodes.at(i).getAddress(), msg);
-		g_transID++;
 	}
 }
 
@@ -197,6 +199,7 @@ void MP2Node::clientUpdate(string key, string value){
 
 	vector<Node> replicaNodes;
 	replicaNodes = findNodes(key);
+	g_transID = 0;
 
 	for(int i = 0; i < replicaNodes.size(); i++){
 		string msg;
@@ -211,7 +214,6 @@ void MP2Node::clientUpdate(string key, string value){
 
 		msg = Message(g_transID,this->memberNode->addr, msgType, key, value, repType).toString();
 		emulNet->ENsend(&(this->memberNode->addr), replicaNodes.at(i).getAddress(), msg);
-		g_transID++;
 	}
 }
 
@@ -233,6 +235,7 @@ void MP2Node::clientDelete(string key){
 
 	vector<Node> replicaNodes;
 	replicaNodes = findNodes(key);
+	g_transID = 0;
 
 	for(int i = 0; i < replicaNodes.size(); i++){
 		string msg;
@@ -247,7 +250,6 @@ void MP2Node::clientDelete(string key){
 
 		msg = Message(g_transID,this->memberNode->addr, msgType, key).toString();
 		emulNet->ENsend(&(this->memberNode->addr), replicaNodes.at(i).getAddress(), msg);
-		g_transID++;
 	}
 }
 
@@ -274,7 +276,6 @@ bool MP2Node::createKeyValue(string key, string value, ReplicaType replica) {
 	} else {
 		log->logCreateFail(&(memberNode->addr), false, g_transID, key, value);
 	}
-	g_transID++;
 
 	return created;
 }
@@ -385,7 +386,7 @@ void MP2Node::checkMessages() {
 				string repMsg = Message(g_transID,memberNode->addr,replyMsgType,false).toString();
 				emulNet->ENsend(&(memberNode->addr),&(recvMsg.fromAddr),repMsg);
 			}
-			g_transID++;
+			
 		} else if(recvMsg.type == UPDATE) {
 
 		} else if(recvMsg.type == READ) {
@@ -395,18 +396,28 @@ void MP2Node::checkMessages() {
 		} else if(recvMsg.type == READREPLY) {
 
 		} else {
-			if(recvMsg.success) {
-				quorumSuccessCnt++
-				if(quorumSuccessCnt == 2) {
-					log->logCreateSuccess();
+			if(g_transID == 10) {
+				if(recvMsg.success){
+					quorumSuccessCnt++;
+					if(quorumSuccessCnt % 2 == 0){
+						log->logCreateSuccess(&(memberNode->addr),true,g_transID,recvMsg.key,recvMsg.value);
+					}
+				} else {
+					quorumFailureCnt++;
+					if(quorumFailureCnt % 2 == 0){
+						log->logCreateFail(&(memberNode->addr),true,g_transID,recvMsg.key,recvMsg.value);
+					}
 				}
-			} else {
-				quorumFailureCnt++
-				if(quorumFailureCnt == 2) {
-					log->logCreateFailure();
-				}
-			}
+			} else if (g_transID == 20) {
 
+			} else if(g_transID == 30) {
+
+			} else if(g_transID == 40) {
+
+			}
+			
+
+			g_transID++;
 		}
 	}
 
