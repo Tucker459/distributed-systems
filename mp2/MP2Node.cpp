@@ -41,7 +41,7 @@ int MP2Node::combine(int integer1, int integer2) {
 		times *= 10;
 	}
 
-	quorumInfo.createTransID = integer2; 
+	createTransID = integer2; 
     return integer1*times + integer2;
 }
 
@@ -70,43 +70,49 @@ stack<int> MP2Node::splitInteger(Message recvMsg) {
 void MP2Node::sndCoordinatorMsg(Message recvMsg, int replyMsgType) {
 	switch(replyMsgType) {
 		case 1:
-		  if(recvMsg.transID != quorumInfo.cachedCreateTransID) {
-			  quorumInfo.quorumSuccessCnt = 0;
-			  quorumInfo.quorumFailureCnt = 0;
+		  cout << quorumInfo.cachedCreateTransID[recvMsg.transID] << endl;
+		  if(quorumInfo.cachedCreateTransID[recvMsg.transID] == 0) {
+			  quorumInfo.quorumSuccessCnt[recvMsg.transID] = 0;
+			  quorumInfo.quorumFailureCnt[recvMsg.transID] = 0;
+			  quorumInfo.cachedCreateTransID[recvMsg.transID] = 1;
+		  } else {
+			  quorumInfo.cachedCreateTransID[recvMsg.transID]++;
 		  }
 		  break;
 
 		case 2:
-		  if(recvMsg.transID != quorumInfo.cachedCreateTransID) {
-			  quorumInfo.quorumSuccessCnt = 0;
-			  quorumInfo.quorumFailureCnt = 0;
+		  if(recvMsg.transID != quorumInfo.cachedCreateTransID[recvMsg.transID]) {
+			  quorumInfo.quorumSuccessCnt[recvMsg.transID] = 0;
+			  quorumInfo.quorumFailureCnt[recvMsg.transID] = 0;
 		  }
 		  break;
 
 		case 3:
-          if(recvMsg.transID != quorumInfo.cachedCreateTransID) {
-			  quorumInfo.quorumSuccessCnt = 0;
-			  quorumInfo.quorumFailureCnt = 0;
+          if(recvMsg.transID != quorumInfo.cachedCreateTransID[recvMsg.transID]) {
+			  quorumInfo.quorumSuccessCnt[recvMsg.transID] = 0;
+			  quorumInfo.quorumFailureCnt[recvMsg.transID] = 0;
 		  }
 		default:
-		   if(recvMsg.transID != quorumInfo.cachedCreateTransID) {
-			   quorumInfo.quorumSuccessCnt = 0;
-			   quorumInfo.quorumFailureCnt = 0;
+		   if(recvMsg.transID != quorumInfo.cachedCreateTransID[recvMsg.transID]) {
+			   quorumInfo.quorumSuccessCnt[recvMsg.transID] = 0;
+			   quorumInfo.quorumFailureCnt[recvMsg.transID] = 0;
 		   }
 	}
 	
 
 	if(recvMsg.success) {
-		quorumInfo.quorumSuccessCnt++;
-		if(quorumInfo.quorumSuccessCnt == 2) {
+		quorumInfo.quorumSuccessCnt[recvMsg.transID]++;
+		//cout << "Member Info: " << memberNode->addr.getAddress() << " G_TransID: " << recvMsg.transID << " quorum count: " << quorumInfo.quorumSuccessCnt[recvMsg.transID] << endl;
+		if(quorumInfo.quorumSuccessCnt[recvMsg.transID] == 2) {
 			sndMsg(recvMsg,replyMsgType,true);
 		}
 	} else {
-		quorumInfo.quorumFailureCnt++;
-		if(quorumInfo.quorumFailureCnt == 2) {
+		quorumInfo.quorumFailureCnt[recvMsg.transID]++;
+		if(quorumInfo.quorumFailureCnt[recvMsg.transID] == 2) {
 			sndMsg(recvMsg,replyMsgType,false);
 		}
 	}
+
 }
 
 void MP2Node::sndMsg(Message recvMsg, int replyMsgType, bool isSuccessful) {
@@ -117,7 +123,6 @@ void MP2Node::sndMsg(Message recvMsg, int replyMsgType, bool isSuccessful) {
 		  } else {
 			  log->logCreateFail(&(memberNode->addr),true,recvMsg.transID,recvMsg.key,recvMsg.value);
 		  }
-		  quorumInfo.cachedCreateTransID = recvMsg.transID;
 		  break;
 
 		case 2:
@@ -126,7 +131,6 @@ void MP2Node::sndMsg(Message recvMsg, int replyMsgType, bool isSuccessful) {
 		  } else {
 			  log->logCreateFail(&(memberNode->addr),true,recvMsg.transID,recvMsg.key,recvMsg.value);
 		  }
-		  quorumInfo.cachedCreateTransID = recvMsg.transID;
 		  break;
 
 		case 3:
@@ -135,7 +139,6 @@ void MP2Node::sndMsg(Message recvMsg, int replyMsgType, bool isSuccessful) {
 		  } else {
 			  log->logCreateFail(&(memberNode->addr),true,recvMsg.transID,recvMsg.key,recvMsg.value);
 		  }
-		  quorumInfo.cachedCreateTransID = recvMsg.transID;
 		  break;
 
 		default:
@@ -144,7 +147,6 @@ void MP2Node::sndMsg(Message recvMsg, int replyMsgType, bool isSuccessful) {
 		  } else {
 			  log->logCreateFail(&(memberNode->addr),true,recvMsg.transID,recvMsg.key,recvMsg.value);
 		  }
-		  quorumInfo.cachedCreateTransID = recvMsg.transID;
 	}
 }
 
@@ -249,7 +251,7 @@ void MP2Node::clientCreate(string key, string value) {
 	vector<Node> replicaNodes;
 	replicaNodes = findNodes(key);
 	int transID = 1;
-	int combinedNum = combine(transID,quorumInfo.createTransID);
+	int combinedNum = combine(transID,createTransID);
 
 	//std::cout << "memberNode Info: " << memberNode->addr.getAddress() << " combined number: " << combinedNum << std::endl;
 
@@ -267,7 +269,7 @@ void MP2Node::clientCreate(string key, string value) {
 		msg = Message(combinedNum,this->memberNode->addr, msgType, key, value, repType).toString();
 		emulNet->ENsend(&(this->memberNode->addr), replicaNodes.at(i).getAddress(), msg);
 	}
-	quorumInfo.createTransID++;
+	createTransID++;
 }
 
 /**
@@ -521,7 +523,6 @@ void MP2Node::checkMessages() {
 		} else if(recvMsg.type == READREPLY) {
 
 		} else {
-
 			stack<int> digits = splitInteger(recvMsg);
 			if(digits.top() == 1) {
 				sndCoordinatorMsg(recvMsg,digits.top());

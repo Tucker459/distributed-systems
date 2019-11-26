@@ -20,34 +20,32 @@
 #include "Queue.h"
 #include <stack>
 
+// Global TransID Variables 
+static int createTransID = 0;
+static int readTransID = 0;
+static int updateTransID = 0;
+static int deleteTransID = 0;
+
 /**
  * Struct Name: quorum
  */
 typedef struct quorum_attr {
 	// Quorum Sucess Count
-	int quorumSuccessCnt;
+	map<int, int> quorumSuccessCnt;
 	// Quorum Failure Count
-	int quorumFailureCnt; 
+	map<int, int> quorumFailureCnt; 
 	// readQuorum Success Count
-	int readQuorumSuccessCnt;
+	map<int, int> readQuorumSuccessCnt;
 	// readQuorum Failure Count
-	int readQuorumFailureCnt;
-	// createTransID
-	int createTransID;
+	map<int, int> readQuorumFailureCnt;
 	// cachedCreateTransID
-	int cachedCreateTransID;
-	// readTransID
-	int readTransID;
+	map<int, int> cachedCreateTransID;
 	// cachedReadTransID
-	int cachedReadTransID;
-	// updateTransID
-	int updateTransID;
+	map<int, int> cachedReadTransID;
 	// cachedUpdateTransID
-	int cachedUpdateTransID;
-	// deleteTransID;
-	int deleteTransID;
+	map<int, int> cachedUpdateTransID;
 	// cachedDeleteTransID
-	int cachedDeleteTransID;
+	map<int, int> cachedDeleteTransID;
 }quorum_attr;
 
 /**
@@ -80,7 +78,8 @@ private:
 	Log * log;
 	// Holds Information related to reaching Quorum
 	quorum_attr quorumInfo;
-	
+	// temp 
+	int tmpCnt;
 
 
 public:
