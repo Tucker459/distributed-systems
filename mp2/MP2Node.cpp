@@ -90,9 +90,12 @@ void MP2Node::sndCoordinatorMsg(Message recvMsg, int replyMsgType) {
 		  break;
 
 		case 3:
-          if(recvMsg.transID != quorumInfo.cachedCreateTransID[recvMsg.transID]) {
+          if(quorumInfo.cachedReadTransID[recvMsg.transID] == 0) {
 			  quorumInfo.quorumSuccessCnt[recvMsg.transID] = 0;
 			  quorumInfo.quorumFailureCnt[recvMsg.transID] = 0;
+			  quorumInfo.cachedReadTransID[recvMsg.transID] = 1;
+		  } else {
+			  quorumInfo.cachedReadTransID[recvMsg.transID]++;
 		  }
 		default:
 		   if(recvMsg.transID != quorumInfo.cachedCreateTransID[recvMsg.transID]) {
@@ -100,9 +103,20 @@ void MP2Node::sndCoordinatorMsg(Message recvMsg, int replyMsgType) {
 			   quorumInfo.quorumFailureCnt[recvMsg.transID] = 0;
 		   }
 	}
-	
 
-	if(recvMsg.success) {
+	if(replyMsgType == 3) {
+		if(recvMsg.value != "") {
+			quorumInfo.quorumSuccessCnt[recvMsg.transID]++;
+			if(quorumInfo.quorumSuccessCnt[recvMsg.transID] == 2) {
+				sndMsg(recvMsg,replyMsgType,true);
+			}
+		} else {
+			quorumInfo.quorumFailureCnt[recvMsg.transID]++;
+			if(quorumInfo.quorumFailureCnt[recvMsg.transID] == 2) {
+				sndMsg(recvMsg,replyMsgType,false);
+			}
+		}
+	} else if (recvMsg.success) {
 		quorumInfo.quorumSuccessCnt[recvMsg.transID]++;
 		if(quorumInfo.quorumSuccessCnt[recvMsg.transID] == 2) {
 			sndMsg(recvMsg,replyMsgType,true);
@@ -136,9 +150,9 @@ void MP2Node::sndMsg(Message recvMsg, int replyMsgType, bool isSuccessful) {
 
 		case 3:
 		  if(isSuccessful) {
-			  log->logCreateSuccess(&(memberNode->addr),true,recvMsg.transID,quorumInfo.kvData[recvMsg.transID].front(),quorumInfo.kvData[recvMsg.transID].back());
+			  log->logReadSuccess(&(memberNode->addr),true,recvMsg.transID,quorumInfo.kvData[recvMsg.transID].front(),quorumInfo.kvData[recvMsg.transID].back());
 		  } else {
-			  log->logCreateFail(&(memberNode->addr),true,recvMsg.transID,quorumInfo.kvData[recvMsg.transID].front(),quorumInfo.kvData[recvMsg.transID].back());
+			  log->logReadFail(&(memberNode->addr),true,recvMsg.transID,quorumInfo.kvData[recvMsg.transID].front());
 		  }
 		  break;
 
@@ -291,7 +305,9 @@ void MP2Node::clientRead(string key){
 
 	vector<Node> replicaNodes;
 	replicaNodes = findNodes(key);
-	g_transID = 0;
+	int transID = 3;
+	int combinedNum = combine(transID,createTransID);
+	quorumInfo.kvData[combinedNum].push_back(key);
 
 	for(int i = 0; i < replicaNodes.size(); i++){
 		string msg;
@@ -304,9 +320,10 @@ void MP2Node::clientRead(string key){
 			repType = TERTIARY;
 		}
 
-		msg = Message(g_transID,this->memberNode->addr, msgType, key).toString();
+		msg = Message(combinedNum,this->memberNode->addr, msgType, key).toString();
 		emulNet->ENsend(&(this->memberNode->addr), replicaNodes.at(i).getAddress(), msg);
 	}
+	createTransID++;
 }
 
 /**
@@ -427,6 +444,12 @@ string MP2Node::readKey(string key) {
 	// Read key from local hash table and return value
 	string val;
 	val = ht->read(key);
+	
+	if(val != "") {
+		log->logReadSuccess(&(memberNode->addr), false, g_transID, key, val);
+	} else {
+		log->logReadFail(&(memberNode->addr), false, g_transID, key);
+	}
 
 	return val;
 }
@@ -528,6 +551,10 @@ void MP2Node::checkMessages() {
 		} else if(recvMsg.type == UPDATE) {
 
 		} else if(recvMsg.type == READ) {
+			string keyVal = readKey(recvMsg.key);
+			quorumInfo.kvData[recvMsg.transID].push_back(keyVal);
+			string repMsg = Message(recvMsg.transID,memberNode->addr,keyVal).toString();
+			emulNet->ENsend(&(memberNode->addr),&(recvMsg.fromAddr),repMsg);
 
 		} else if(recvMsg.type == DELETE) {
 			bool deletedKey = deletekey(recvMsg.key);
@@ -541,18 +568,12 @@ void MP2Node::checkMessages() {
 			}
 
 		} else if(recvMsg.type == READREPLY) {
-
+			stack<int> digits = splitInteger(recvMsg);
+			sndCoordinatorMsg(recvMsg,digits.top());
+			
 		} else {
 			stack<int> digits = splitInteger(recvMsg);
-			if(digits.top() == 1) {
-				sndCoordinatorMsg(recvMsg,digits.top());
-			} else if(digits.top() == 2) {
-				sndCoordinatorMsg(recvMsg,digits.top());
-			} else if(digits.top() == 3) {
-				sndCoordinatorMsg(recvMsg,digits.top());
-			} else {
-				sndCoordinatorMsg(recvMsg,digits.top());
-			}
+			sndCoordinatorMsg(recvMsg,digits.top());
 		}
 	}
 
