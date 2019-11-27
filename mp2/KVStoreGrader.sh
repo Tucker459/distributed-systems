@@ -99,7 +99,6 @@ else
 	for key in ${keys}
 	do 
 		key_create_success_count=`grep -i "${CREATE_SUCCESS}" dbg.log | grep "${key}" | wc -l`
-		echo "Key Create Success Count:" ${key_create_success_count}
 		if [ "${key_create_success_count}" -ne "${RFPLUSONE}" ]
 		then
 			CREATE_TEST_STATUS="${FAILURE}"

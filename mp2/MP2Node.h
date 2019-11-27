@@ -46,6 +46,8 @@ typedef struct quorum_attr {
 	map<int, int> cachedUpdateTransID;
 	// cachedDeleteTransID
 	map<int, int> cachedDeleteTransID;
+	// holds all of the keys and values based on transID
+	map<int, std::vector<string>> kvData;
 }quorum_attr;
 
 /**

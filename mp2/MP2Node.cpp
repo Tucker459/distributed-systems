@@ -70,7 +70,6 @@ stack<int> MP2Node::splitInteger(Message recvMsg) {
 void MP2Node::sndCoordinatorMsg(Message recvMsg, int replyMsgType) {
 	switch(replyMsgType) {
 		case 1:
-		  cout << quorumInfo.cachedCreateTransID[recvMsg.transID] << endl;
 		  if(quorumInfo.cachedCreateTransID[recvMsg.transID] == 0) {
 			  quorumInfo.quorumSuccessCnt[recvMsg.transID] = 0;
 			  quorumInfo.quorumFailureCnt[recvMsg.transID] = 0;
@@ -102,7 +101,6 @@ void MP2Node::sndCoordinatorMsg(Message recvMsg, int replyMsgType) {
 
 	if(recvMsg.success) {
 		quorumInfo.quorumSuccessCnt[recvMsg.transID]++;
-		//cout << "Member Info: " << memberNode->addr.getAddress() << " G_TransID: " << recvMsg.transID << " quorum count: " << quorumInfo.quorumSuccessCnt[recvMsg.transID] << endl;
 		if(quorumInfo.quorumSuccessCnt[recvMsg.transID] == 2) {
 			sndMsg(recvMsg,replyMsgType,true);
 		}
@@ -119,33 +117,33 @@ void MP2Node::sndMsg(Message recvMsg, int replyMsgType, bool isSuccessful) {
 	switch(replyMsgType) {
 		case 1:
 		  if(isSuccessful) {
-			  log->logCreateSuccess(&(memberNode->addr),true,recvMsg.transID,recvMsg.key,recvMsg.value);
+			  log->logCreateSuccess(&(memberNode->addr),true,recvMsg.transID,quorumInfo.kvData[recvMsg.transID].front(),quorumInfo.kvData[recvMsg.transID].back());
 		  } else {
-			  log->logCreateFail(&(memberNode->addr),true,recvMsg.transID,recvMsg.key,recvMsg.value);
+			  log->logCreateFail(&(memberNode->addr),true,recvMsg.transID,quorumInfo.kvData[recvMsg.transID].front(),quorumInfo.kvData[recvMsg.transID].back());
 		  }
 		  break;
 
 		case 2:
 		  if(isSuccessful) {
-			  log->logCreateSuccess(&(memberNode->addr),true,recvMsg.transID,recvMsg.key,recvMsg.value);
+			  log->logCreateSuccess(&(memberNode->addr),true,recvMsg.transID,quorumInfo.kvData[recvMsg.transID].front(),quorumInfo.kvData[recvMsg.transID].back());
 		  } else {
-			  log->logCreateFail(&(memberNode->addr),true,recvMsg.transID,recvMsg.key,recvMsg.value);
+			  log->logCreateFail(&(memberNode->addr),true,recvMsg.transID,quorumInfo.kvData[recvMsg.transID].front(),quorumInfo.kvData[recvMsg.transID].back());
 		  }
 		  break;
 
 		case 3:
 		  if(isSuccessful) {
-			  log->logCreateSuccess(&(memberNode->addr),true,recvMsg.transID,recvMsg.key,recvMsg.value);
+			  log->logCreateSuccess(&(memberNode->addr),true,recvMsg.transID,quorumInfo.kvData[recvMsg.transID].front(),quorumInfo.kvData[recvMsg.transID].back());
 		  } else {
-			  log->logCreateFail(&(memberNode->addr),true,recvMsg.transID,recvMsg.key,recvMsg.value);
+			  log->logCreateFail(&(memberNode->addr),true,recvMsg.transID,quorumInfo.kvData[recvMsg.transID].front(),quorumInfo.kvData[recvMsg.transID].back());
 		  }
 		  break;
 
 		default:
 		  if(isSuccessful) {
-			  log->logCreateSuccess(&(memberNode->addr),true,recvMsg.transID,recvMsg.key,recvMsg.value);
+			  log->logCreateSuccess(&(memberNode->addr),true,recvMsg.transID,quorumInfo.kvData[recvMsg.transID].front(),quorumInfo.kvData[recvMsg.transID].back());
 		  } else {
-			  log->logCreateFail(&(memberNode->addr),true,recvMsg.transID,recvMsg.key,recvMsg.value);
+			  log->logCreateFail(&(memberNode->addr),true,recvMsg.transID,quorumInfo.kvData[recvMsg.transID].front(),quorumInfo.kvData[recvMsg.transID].back());
 		  }
 	}
 }
@@ -252,6 +250,9 @@ void MP2Node::clientCreate(string key, string value) {
 	replicaNodes = findNodes(key);
 	int transID = 1;
 	int combinedNum = combine(transID,createTransID);
+	quorumInfo.kvData[combinedNum].push_back(key);
+	quorumInfo.kvData[combinedNum].push_back(value);
+
 
 	//std::cout << "memberNode Info: " << memberNode->addr.getAddress() << " combined number: " << combinedNum << std::endl;
 
