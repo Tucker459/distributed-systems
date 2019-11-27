@@ -166,6 +166,11 @@ valid_delete_count=$(( ${delete_count} - 1 ))
 expected_count=$(( ${valid_delete_count} * ${RFPLUSONE} ))
 delete_success_count=`grep -i "${DELETE_SUCCESS}" dbg.log | wc -l`
 
+echo "delete count:" ${delete_count}
+echo "valid delete count:" ${valid_delete_count}
+echo "expected count:" ${expected_count}
+echo "delete success count:" ${delete_success_count}
+
 if [ "${delete_success_count}" -ne "${expected_count}" ]
 then
 	DELETE_TEST1_STATUS="${FAILURE}"

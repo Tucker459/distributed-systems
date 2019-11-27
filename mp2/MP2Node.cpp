@@ -80,9 +80,12 @@ void MP2Node::sndCoordinatorMsg(Message recvMsg, int replyMsgType) {
 		  break;
 
 		case 2:
-		  if(recvMsg.transID != quorumInfo.cachedCreateTransID[recvMsg.transID]) {
+		  if(quorumInfo.cachedDeleteTransID[recvMsg.transID] == 0) {
 			  quorumInfo.quorumSuccessCnt[recvMsg.transID] = 0;
 			  quorumInfo.quorumFailureCnt[recvMsg.transID] = 0;
+			  quorumInfo.cachedDeleteTransID[recvMsg.transID] = 1;
+		  } else {
+			  quorumInfo.cachedDeleteTransID[recvMsg.transID]++;
 		  }
 		  break;
 
@@ -125,9 +128,9 @@ void MP2Node::sndMsg(Message recvMsg, int replyMsgType, bool isSuccessful) {
 
 		case 2:
 		  if(isSuccessful) {
-			  log->logCreateSuccess(&(memberNode->addr),true,recvMsg.transID,quorumInfo.kvData[recvMsg.transID].front(),quorumInfo.kvData[recvMsg.transID].back());
+			  log->logDeleteSuccess(&(memberNode->addr),true,recvMsg.transID,quorumInfo.kvData[recvMsg.transID].front());
 		  } else {
-			  log->logCreateFail(&(memberNode->addr),true,recvMsg.transID,quorumInfo.kvData[recvMsg.transID].front(),quorumInfo.kvData[recvMsg.transID].back());
+			  log->logDeleteFail(&(memberNode->addr),true,recvMsg.transID,quorumInfo.kvData[recvMsg.transID].front());
 		  }
 		  break;
 
@@ -253,9 +256,6 @@ void MP2Node::clientCreate(string key, string value) {
 	quorumInfo.kvData[combinedNum].push_back(key);
 	quorumInfo.kvData[combinedNum].push_back(value);
 
-
-	//std::cout << "memberNode Info: " << memberNode->addr.getAddress() << " combined number: " << combinedNum << std::endl;
-
 	for(int i = 0; i < replicaNodes.size(); i++){
 		string msg;
 		ReplicaType repType;
@@ -363,7 +363,10 @@ void MP2Node::clientDelete(string key){
 
 	vector<Node> replicaNodes;
 	replicaNodes = findNodes(key);
-	g_transID = 0;
+	int transID = 2;
+	int combinedNum = combine(transID,createTransID);
+	quorumInfo.kvData[combinedNum].push_back(key);
+
 
 	for(int i = 0; i < replicaNodes.size(); i++){
 		string msg;
@@ -376,9 +379,10 @@ void MP2Node::clientDelete(string key){
 			repType = TERTIARY;
 		}
 
-		msg = Message(g_transID,this->memberNode->addr, msgType, key).toString();
+		msg = Message(combinedNum,this->memberNode->addr, msgType, key).toString();
 		emulNet->ENsend(&(this->memberNode->addr), replicaNodes.at(i).getAddress(), msg);
 	}
+	createTransID++;
 }
 
 /**
@@ -465,6 +469,12 @@ bool MP2Node::deletekey(string key) {
 	bool deletedKey;
 	deletedKey = ht->deleteKey(key);
 
+	if(deletedKey) {
+		log->logDeleteSuccess(&(memberNode->addr), false, g_transID, key);
+	} else {
+		log->logDeleteFail(&(memberNode->addr), false, g_transID, key);
+	}
+
 	return deletedKey;
 }
 
@@ -520,6 +530,15 @@ void MP2Node::checkMessages() {
 		} else if(recvMsg.type == READ) {
 
 		} else if(recvMsg.type == DELETE) {
+			bool deletedKey = deletekey(recvMsg.key);
+			MessageType replyMsgType = REPLY;
+			if(deletedKey) {
+				string repMsg = Message(recvMsg.transID,memberNode->addr,replyMsgType,true).toString();
+				emulNet->ENsend(&(memberNode->addr),&(recvMsg.fromAddr),repMsg);
+			} else {
+				string repMsg = Message(recvMsg.transID,memberNode->addr,replyMsgType,false).toString();
+				emulNet->ENsend(&(memberNode->addr),&(recvMsg.fromAddr),repMsg);
+			}
 
 		} else if(recvMsg.type == READREPLY) {
 
