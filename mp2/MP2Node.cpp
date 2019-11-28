@@ -312,13 +312,6 @@ void MP2Node::clientRead(string key){
 	for(int i = 0; i < replicaNodes.size(); i++){
 		string msg;
 		ReplicaType repType;
-		if(i == 0) {
-			repType = PRIMARY;
-		}else if(i == 1) {
-			repType = SECONDARY;
-		} else {
-			repType = TERTIARY;
-		}
 
 		msg = Message(combinedNum,this->memberNode->addr, msgType, key).toString();
 		emulNet->ENsend(&(this->memberNode->addr), replicaNodes.at(i).getAddress(), msg);
@@ -388,13 +381,6 @@ void MP2Node::clientDelete(string key){
 	for(int i = 0; i < replicaNodes.size(); i++){
 		string msg;
 		ReplicaType repType;
-		if(i == 0) {
-			repType = PRIMARY;
-		}else if(i == 1) {
-			repType = SECONDARY;
-		} else {
-			repType = TERTIARY;
-		}
 
 		msg = Message(combinedNum,this->memberNode->addr, msgType, key).toString();
 		emulNet->ENsend(&(this->memberNode->addr), replicaNodes.at(i).getAddress(), msg);
@@ -651,6 +637,12 @@ void MP2Node::stabilizationProtocol() {
 	/*
 	 * Implement this
 	 */
+
+	map<string, string>::iterator search;
+	vector<Node> allReplicas;
+	for(search = ht->hashTable.begin(); search != ht->hashTable.end(); search++) {
+		clientCreate(search->first, search->second);
+	}
 
 
 
