@@ -190,15 +190,18 @@ void MP2Node::updateRing() {
 	 * Step 2: Construct the ring
 	 */
 	// Sort the list based on the hashCode
-	sort(curMemList.begin(), curMemList.end());
-	if(ring.size() > 0 && ring.size() != curMemList.size()) {
-		change = true;
-	} else {
-		for(unsigned int i = 0; i < curMemList.size(); i++) {
-		ring.emplace_back(curMemList.at(i));
-		}
-	}
 
+	sort(curMemList.begin(), curMemList.end());
+	if(ring.size() != curMemList.size()) {
+		if(memberNode->addr.getAddress() == "1:0") {
+			cout <<  "Member Info: " << memberNode->addr.getAddress() << " Current MemList: " << curMemList.size() << " Ring Size: " << ring.size() << endl;
+		}
+		ring.clear();
+		for(unsigned int i = 0; i < curMemList.size(); i++) {
+			ring.emplace_back(curMemList.at(i));
+		}
+		change = true;
+	}
 
 	/*
 	 * Step 3: Run the stabilization protocol IF REQUIRED
@@ -640,8 +643,12 @@ void MP2Node::stabilizationProtocol() {
 
 	map<string, string>::iterator search;
 	vector<Node> allReplicas;
+	if(ht->isEmpty()){
+		std::cout << "ht is empty" << std::endl;
+	}
+
 	for(search = ht->hashTable.begin(); search != ht->hashTable.end(); search++) {
-		clientCreate(search->first, search->second);
+		
 	}
 
 
