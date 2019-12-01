@@ -94,9 +94,12 @@ void MP2Node::sndCoordinatorMsg(Message recvMsg, int replyMsgType) {
 			  quorumInfo.quorumSuccessCnt[recvMsg.transID] = 0;
 			  quorumInfo.quorumFailureCnt[recvMsg.transID] = 0;
 			  quorumInfo.cachedReadTransID[recvMsg.transID] = 1;
+
 		  } else {
 			  quorumInfo.cachedReadTransID[recvMsg.transID]++;
 		  }
+		  break;
+
 		default:
 		   if(recvMsg.transID != quorumInfo.cachedCreateTransID[recvMsg.transID]) {
 			   quorumInfo.quorumSuccessCnt[recvMsg.transID] = 0;
@@ -111,7 +114,7 @@ void MP2Node::sndCoordinatorMsg(Message recvMsg, int replyMsgType) {
 				sndMsg(recvMsg,replyMsgType,true);
 			}
 		} else {
-			quorumInfo.quorumFailureCnt[recvMsg.transID]++;
+			quorumInfo.quorumFailureCnt[recvMsg.transID] = quorumInfo.quorumFailureCnt[recvMsg.transID] + 1;
 			if(quorumInfo.quorumFailureCnt[recvMsg.transID] == 2) {
 				sndMsg(recvMsg,replyMsgType,false);
 			}
@@ -150,8 +153,10 @@ void MP2Node::sndMsg(Message recvMsg, int replyMsgType, bool isSuccessful) {
 
 		case 3:
 		  if(isSuccessful) {
+			  //cout << "transID: " << recvMsg.transID << " Key: " << quorumInfo.kvData[recvMsg.transID].front() << " Value: " << quorumInfo.kvData[recvMsg.transID].back() << endl;
 			  log->logReadSuccess(&(memberNode->addr),true,recvMsg.transID,quorumInfo.kvData[recvMsg.transID].front(),quorumInfo.kvData[recvMsg.transID].back());
 		  } else {
+			  //cout << "transID: " << recvMsg.transID << " Key: " << quorumInfo.kvData[recvMsg.transID].front() << " Value: " << quorumInfo.kvData[recvMsg.transID].back() << endl;
 			  log->logReadFail(&(memberNode->addr),true,recvMsg.transID,quorumInfo.kvData[recvMsg.transID].front());
 		  }
 		  break;
@@ -193,9 +198,6 @@ void MP2Node::updateRing() {
 
 	sort(curMemList.begin(), curMemList.end());
 	if(ring.size() != curMemList.size()) {
-		if(memberNode->addr.getAddress() == "1:0") {
-			cout <<  "Member Info: " << memberNode->addr.getAddress() << " Current MemList: " << curMemList.size() << " Ring Size: " << ring.size() << endl;
-		}
 		ring.clear();
 		for(unsigned int i = 0; i < curMemList.size(); i++) {
 			ring.emplace_back(curMemList.at(i));
@@ -270,8 +272,8 @@ void MP2Node::clientCreate(string key, string value) {
 	replicaNodes = findNodes(key);
 	int transID = 1;
 	int combinedNum = combine(transID,createTransID);
-	quorumInfo.kvData[combinedNum].push_back(key);
-	quorumInfo.kvData[combinedNum].push_back(value);
+	quorumInfo.kvData[combinedNum].emplace_back(key);
+	quorumInfo.kvData[combinedNum].emplace_back(value);
 
 	for(int i = 0; i < replicaNodes.size(); i++){
 		string msg;
@@ -310,11 +312,10 @@ void MP2Node::clientRead(string key){
 	replicaNodes = findNodes(key);
 	int transID = 3;
 	int combinedNum = combine(transID,createTransID);
-	quorumInfo.kvData[combinedNum].push_back(key);
+	quorumInfo.kvData[combinedNum].emplace_back(key); 
 
 	for(int i = 0; i < replicaNodes.size(); i++){
 		string msg;
-		ReplicaType repType;
 
 		msg = Message(combinedNum,this->memberNode->addr, msgType, key).toString();
 		emulNet->ENsend(&(this->memberNode->addr), replicaNodes.at(i).getAddress(), msg);
@@ -340,7 +341,8 @@ void MP2Node::clientUpdate(string key, string value){
 
 	vector<Node> replicaNodes;
 	replicaNodes = findNodes(key);
-	g_transID = 0;
+	int transID = 4;
+	int combinedNum = combine(transID,createTransID);
 
 	for(int i = 0; i < replicaNodes.size(); i++){
 		string msg;
@@ -353,9 +355,10 @@ void MP2Node::clientUpdate(string key, string value){
 			repType = TERTIARY;
 		}
 
-		msg = Message(g_transID,this->memberNode->addr, msgType, key, value, repType).toString();
+		msg = Message(combinedNum,this->memberNode->addr, msgType, key, value, repType).toString();
 		emulNet->ENsend(&(this->memberNode->addr), replicaNodes.at(i).getAddress(), msg);
 	}
+	createTransID++;
 }
 
 /**
@@ -378,12 +381,11 @@ void MP2Node::clientDelete(string key){
 	replicaNodes = findNodes(key);
 	int transID = 2;
 	int combinedNum = combine(transID,createTransID);
-	quorumInfo.kvData[combinedNum].push_back(key);
+	quorumInfo.kvData[combinedNum].emplace_back(key);
 
 
 	for(int i = 0; i < replicaNodes.size(); i++){
 		string msg;
-		ReplicaType repType;
 
 		msg = Message(combinedNum,this->memberNode->addr, msgType, key).toString();
 		emulNet->ENsend(&(this->memberNode->addr), replicaNodes.at(i).getAddress(), msg);
@@ -409,11 +411,14 @@ bool MP2Node::createKeyValue(string key, string value, ReplicaType replica) {
 	entryValue = Entry(value, par->getcurrtime(), replica).convertToString();
 	created = ht->create(key, entryValue);
 
-	if(created) {
-		log->logCreateSuccess(&(memberNode->addr), false, g_transID, key, value);
-	} else {
-		log->logCreateFail(&(memberNode->addr), false, g_transID, key, value);
+	if(quorumInfo.stabilMsg == false) {
+		if(created) {
+			log->logCreateSuccess(&(memberNode->addr), false, g_transID, key, value);
+		} else {
+			log->logCreateFail(&(memberNode->addr), false, g_transID, key, value);
+		}
 	}
+	
 
 	return created;
 }
@@ -457,10 +462,14 @@ bool MP2Node::updateKeyValue(string key, string value, ReplicaType replica) {
 	 */
 	// Update key in local hash table and return true or false
 
-	bool updatedKey;
+	bool isUpdated;
 	string entryVal;
 	entryVal = Entry(value, par->getcurrtime(), replica).convertToString();
 	updatedKey = ht->update(key,entryVal);
+
+	if(isUpdated){
+		
+	}
 
 	return updatedKey;
 }
@@ -538,10 +547,16 @@ void MP2Node::checkMessages() {
 			}
 			
 		} else if(recvMsg.type == UPDATE) {
+			bool isUpdated = updateKeyValue(recvMsg.key,recvMsg.value,recvMsg.replica);
+			if(isUpdated) {
+
+			} else {
+
+			}
 
 		} else if(recvMsg.type == READ) {
 			string keyVal = readKey(recvMsg.key);
-			quorumInfo.kvData[recvMsg.transID].push_back(keyVal);
+			quorumInfo.kvData[recvMsg.transID].emplace_back(keyVal);
 			string repMsg = Message(recvMsg.transID,memberNode->addr,keyVal).toString();
 			emulNet->ENsend(&(memberNode->addr),&(recvMsg.fromAddr),repMsg);
 
@@ -561,8 +576,11 @@ void MP2Node::checkMessages() {
 			sndCoordinatorMsg(recvMsg,digits.top());
 			
 		} else {
-			stack<int> digits = splitInteger(recvMsg);
-			sndCoordinatorMsg(recvMsg,digits.top());
+			if(quorumInfo.stabilMsg == false) {
+				stack<int> digits = splitInteger(recvMsg);
+				sndCoordinatorMsg(recvMsg,digits.top());
+			}
+			
 		}
 	}
 
@@ -643,12 +661,9 @@ void MP2Node::stabilizationProtocol() {
 
 	map<string, string>::iterator search;
 	vector<Node> allReplicas;
-	if(ht->isEmpty()){
-		std::cout << "ht is empty" << std::endl;
-	}
 
 	for(search = ht->hashTable.begin(); search != ht->hashTable.end(); search++) {
-		
+	
 	}
 
 

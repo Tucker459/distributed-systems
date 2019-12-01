@@ -279,6 +279,8 @@ do
 		read_op_test2_time="${time}"
 		read_op_test2_key=`grep -i "${READ_OPERATION}" dbg.log | grep "${read_op_test2_time}" | cut -d" " -f7`
 		read_op_test2_value=`grep -i "${READ_OPERATION}" dbg.log | grep "${read_op_test2_time}" | cut -d" " -f9`
+		echo "read_op_test2_key: " ${read_op_test2_key}
+		echo "read_op_test2_value: " ${read_op_test2_value}
 	elif [ ${cnt} -eq 3 ]
 	then
 		echo "TEST 3 PART 1: Read a key after failing two replicas. Read should fail"
@@ -363,10 +365,13 @@ if [ "${read_test1_success_count}" -eq "${QUORUMPLUSONE}" -o "${read_test1_succe
 then
 	READ_TEST1_STATUS="${SUCCESS}"
 fi
+echo "Read_Test2_Success_Cout: " ${read_test2_success_count}
+echo "Quorum Plus One: " ${QUORUMPLUSONE}
 if [ "${read_test2_success_count}" -eq "${QUORUMPLUSONE}" ]
 then
 	READ_TEST2_STATUS="${SUCCESS}"
 fi
+echo "read_test3_part1_fail_count: " ${read_test3_part1_fail_count}
 if [ "${read_test3_part1_fail_count}" -eq 1 ]
 then
 	READ_TEST3_PART1_STATUS="${SUCCESS}"
