@@ -170,6 +170,43 @@ void MP2Node::sndMsg(Message recvMsg, int replyMsgType, bool isSuccessful) {
 	}
 }
 
+
+// sndMsg Constructor 
+void MP2Node::sndMsg(int transID, int replyMsgType, bool isSuccessful) {
+	switch(replyMsgType) {
+		case 1:
+		  if(isSuccessful) {
+			  log->logCreateSuccess(&(memberNode->addr),true,transID,quorumInfo.kvData[transID].front(),quorumInfo.kvData[transID].back());
+		  } else {
+			  log->logCreateFail(&(memberNode->addr),true,transID,quorumInfo.kvData[transID].front(),quorumInfo.kvData[transID].back());
+		  }
+		  break;
+
+		case 2:
+		  if(isSuccessful) {
+			  log->logDeleteSuccess(&(memberNode->addr),true,transID,quorumInfo.kvData[transID].front());
+		  } else {
+			  log->logDeleteFail(&(memberNode->addr),true,transID,quorumInfo.kvData[transID].front());
+		  }
+		  break;
+
+		case 3:
+		  if(isSuccessful) {
+			  log->logReadSuccess(&(memberNode->addr),true,transID,quorumInfo.kvData[transID].front(),quorumInfo.kvData[transID].back());
+		  } else {
+			  log->logReadFail(&(memberNode->addr),true,transID,quorumInfo.kvData[transID].front());
+		  }
+		  break;
+
+		default:
+		  if(isSuccessful) {
+			  log->logUpdateSuccess(&(memberNode->addr),true,transID,quorumInfo.kvData[transID].front(),quorumInfo.kvData[transID].back());
+		  } else {
+			  log->logUpdateFail(&(memberNode->addr),true,transID,quorumInfo.kvData[transID].front(),quorumInfo.kvData[transID].back());
+		  }
+	}
+}
+
 /**
  * FUNCTION NAME: updateRing
  *
@@ -319,7 +356,6 @@ void MP2Node::clientRead(string key){
 		msg = Message(combinedNum,this->memberNode->addr, msgType, key).toString();
 		emulNet->ENsend(&(this->memberNode->addr), replicaNodes.at(i).getAddress(), msg);
 	}
-	
 	createTransID++;
 }
 
@@ -420,7 +456,6 @@ bool MP2Node::createKeyValue(string key, string value, ReplicaType replica) {
 			log->logCreateFail(&(memberNode->addr), false, g_transID, key, value);
 		}
 	}
-	
 
 	return created;
 }
@@ -564,9 +599,32 @@ void MP2Node::checkMessages() {
 		} else if(recvMsg.type == READ) {
 			string keyVal = readKey(recvMsg.key);
 			string repMsg = Message(recvMsg.transID,memberNode->addr,keyVal).toString();
-			cout << "Member Info: " << memberNode->addr.getAddress() << " TransID: " << recvMsg.transID << " IsFailed: " << memberNode->bFailed << endl;
 			emulNet->ENsend(&(memberNode->addr),&(recvMsg.fromAddr),repMsg);
-
+			qCheck[recvMsg.transID].lastUpdatedTime = par->getcurrtime();
+			qCheck[recvMsg.transID].qTransID = recvMsg.transID;
+			qCheck[recvMsg.transID].operation = READ;
+			qCheck[recvMsg.transID].key = recvMsg.key;
+			qCheck[recvMsg.transID].value = keyVal;
+			if(keyVal == "") {
+				qCheck[recvMsg.transID].failureCnt++;
+			} else {
+				qCheck[recvMsg.transID].successCnt++;
+			}
+			if(qCheck[recvMsg.transID].failureCnt >= 2 || qCheck[recvMsg.transID].successCnt >= 2) {
+				qCheck[recvMsg.transID].hasQuorum = true;
+			}
+			cout << createTransID << endl;
+			for(int i = 31000; i <= createTransID + 30000; i++) {
+				cout << qCheck[i].hasQuorum << " " << qCheck[i].lastUpdatedTime << endl;
+				if(qCheck[i].hasQuorum == false && qCheck[i].lastUpdatedTime != 0) {
+					cout << "Bye!!" << endl;
+					if(qCheck[i].lastUpdatedTime + 3 < par->getcurrtime()) {
+						cout << "Hi" << endl;
+						sndMsg(qCheck[i].qTransID,recvMsg.type,false);
+					}
+				}
+				continue;
+			}
 		} else if(recvMsg.type == DELETE) {
 			bool deletedKey = deletekey(recvMsg.key);
 			MessageType replyMsgType = REPLY;

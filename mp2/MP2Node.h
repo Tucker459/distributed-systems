@@ -27,6 +27,33 @@ static int updateTransID = 0;
 static int deleteTransID = 0;
 
 /**
+ * Struct Name: quorumChck
+ * 
+ * DESCRIPTION: Checks if we have quorum based on transID periodically.
+ */
+typedef struct QuorumChck {
+	// last updated time
+	int lastUpdatedTime;
+	// trans_id
+	int qTransID;
+	// operation
+	MessageType operation;
+	// Success Cnt
+	int successCnt;
+	// Falure Cnt
+	int failureCnt;
+	// hasQuorum
+	bool hasQuorum;
+	// key
+	string key; 
+	// value
+	string value;
+
+}QuorumChck;
+
+static map<int, QuorumChck> qCheck;
+
+/**
  * Struct Name: quorum
  */
 typedef struct quorum_attr {
@@ -103,6 +130,9 @@ public:
 
 	// Send Coordinator Message based on Message Type
 	void sndMsg(Message recvMsg, int replyMsgType, bool isSuccessful);
+
+	// Send Coordinator Message based on Message Type
+	void sndMsg(int transID, int replyMsgType, bool isSuccessful);
 
 	// ring functionalities
 	void updateRing();
