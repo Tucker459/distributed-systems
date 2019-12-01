@@ -100,7 +100,7 @@ void MP2Node::sndCoordinatorMsg(Message recvMsg, int replyMsgType) {
 		  break;
 
 		default:
-		   if(recvMsg.transID != quorumInfo.cachedUpdateTransID[recvMsg.transID]) {
+		   if(quorumInfo.cachedUpdateTransID[recvMsg.transID] == 0) {
 			   quorumInfo.quorumSuccessCnt[recvMsg.transID] = 0;
 			   quorumInfo.quorumFailureCnt[recvMsg.transID] = 0;
 			   quorumInfo.cachedUpdateTransID[recvMsg.transID] = 1;
@@ -155,10 +155,10 @@ void MP2Node::sndMsg(Message recvMsg, int replyMsgType, bool isSuccessful) {
 
 		case 3:
 		  if(isSuccessful) {
-			  //cout << "transID: " << recvMsg.transID << " Key: " << quorumInfo.kvData[recvMsg.transID].front() << " Value: " << quorumInfo.kvData[recvMsg.transID].back() << endl;
+			  cout << "transID: " << recvMsg.transID << " Key: " << quorumInfo.kvData[recvMsg.transID].front() << " Value: " << quorumInfo.kvData[recvMsg.transID].back() << endl;
 			  log->logReadSuccess(&(memberNode->addr),true,recvMsg.transID,quorumInfo.kvData[recvMsg.transID].front(),quorumInfo.kvData[recvMsg.transID].back());
 		  } else {
-			  //cout << "transID: " << recvMsg.transID << " Key: " << quorumInfo.kvData[recvMsg.transID].front() << " Value: " << quorumInfo.kvData[recvMsg.transID].back() << endl;
+			  cout << "transID: " << recvMsg.transID << " Key: " << quorumInfo.kvData[recvMsg.transID].front() << " Value: " << quorumInfo.kvData[recvMsg.transID].back() << endl;
 			  log->logReadFail(&(memberNode->addr),true,recvMsg.transID,quorumInfo.kvData[recvMsg.transID].front());
 		  }
 		  break;
@@ -315,6 +315,7 @@ void MP2Node::clientRead(string key){
 	int transID = 3;
 	int combinedNum = combine(transID,createTransID);
 	quorumInfo.kvData[combinedNum].emplace_back(key); 
+	cout << "BEFORE1: " << " MemberInfo: " << memberNode->addr.getAddress() << " TransID: " << combinedNum << " Key: " << quorumInfo.kvData[combinedNum].front() << endl;
 
 	for(int i = 0; i < replicaNodes.size(); i++){
 		string msg;
@@ -565,7 +566,6 @@ void MP2Node::checkMessages() {
 
 		} else if(recvMsg.type == READ) {
 			string keyVal = readKey(recvMsg.key);
-			quorumInfo.kvData[recvMsg.transID].emplace_back(keyVal);
 			string repMsg = Message(recvMsg.transID,memberNode->addr,keyVal).toString();
 			emulNet->ENsend(&(memberNode->addr),&(recvMsg.fromAddr),repMsg);
 
@@ -582,6 +582,7 @@ void MP2Node::checkMessages() {
 
 		} else if(recvMsg.type == READREPLY) {
 			stack<int> digits = splitInteger(recvMsg);
+			quorumInfo.kvData[recvMsg.transID].emplace_back(recvMsg.value);
 			sndCoordinatorMsg(recvMsg,digits.top());
 			
 		} else {
