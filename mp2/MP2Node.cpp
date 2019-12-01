@@ -31,7 +31,7 @@ MP2Node::~MP2Node() {
  * 
  * DESCRIPTION: Combines two integers together
  */
-int MP2Node::combine(int integer1, int integer2) {
+int MP2Node::combine(int integer1, int integer2, int *operationTransID) {
 	if(integer2 == 0) {
 		integer2 = 1000;
 	}
@@ -41,7 +41,7 @@ int MP2Node::combine(int integer1, int integer2) {
 		times *= 10;
 	}
 
-	createTransID = integer2; 
+	*operationTransID = integer2; 
     return integer1*times + integer2;
 }
 
@@ -139,71 +139,49 @@ void MP2Node::sndMsg(Message recvMsg, int replyMsgType, bool isSuccessful) {
 	switch(replyMsgType) {
 		case 1:
 		  if(isSuccessful) {
-			  log->logCreateSuccess(&(memberNode->addr),true,recvMsg.transID,quorumInfo.kvData[recvMsg.transID].front(),quorumInfo.kvData[recvMsg.transID].back());
+			  log->logCreateSuccess(&(memberNode->addr),true,recvMsg.transID,kvData[recvMsg.transID].front(),kvData[recvMsg.transID].back());
 		  } else {
-			  log->logCreateFail(&(memberNode->addr),true,recvMsg.transID,quorumInfo.kvData[recvMsg.transID].front(),quorumInfo.kvData[recvMsg.transID].back());
+			  log->logCreateFail(&(memberNode->addr),true,recvMsg.transID,kvData[recvMsg.transID].front(),kvData[recvMsg.transID].back());
 		  }
 		  break;
 
 		case 2:
 		  if(isSuccessful) {
-			  log->logDeleteSuccess(&(memberNode->addr),true,recvMsg.transID,quorumInfo.kvData[recvMsg.transID].front());
+			  log->logDeleteSuccess(&(memberNode->addr),true,recvMsg.transID,kvData[recvMsg.transID].front());
 		  } else {
-			  log->logDeleteFail(&(memberNode->addr),true,recvMsg.transID,quorumInfo.kvData[recvMsg.transID].front());
+			  log->logDeleteFail(&(memberNode->addr),true,recvMsg.transID,kvData[recvMsg.transID].front());
 		  }
 		  break;
 
 		case 3:
 		  if(isSuccessful) {
-			  log->logReadSuccess(&(memberNode->addr),true,recvMsg.transID,quorumInfo.kvData[recvMsg.transID].front(),quorumInfo.kvData[recvMsg.transID].back());
+			  log->logReadSuccess(&(memberNode->addr),true,recvMsg.transID,kvData[recvMsg.transID].front(),kvData[recvMsg.transID].back());
+			  qCheck[recvMsg.transID].sntSuccessMsg = true;
+			  qCheck[recvMsg.transID].hasQuorum = true;
 		  } else {
-			  log->logReadFail(&(memberNode->addr),true,recvMsg.transID,quorumInfo.kvData[recvMsg.transID].front());
+			  log->logReadFail(&(memberNode->addr),true,recvMsg.transID,kvData[recvMsg.transID].front());
+			  qCheck[recvMsg.transID].sntFailureMsg = true;
+			  qCheck[recvMsg.transID].hasQuorum = true;
 		  }
 		  break;
 
 		default:
 		  if(isSuccessful) {
-			  log->logUpdateSuccess(&(memberNode->addr),true,recvMsg.transID,quorumInfo.kvData[recvMsg.transID].front(),quorumInfo.kvData[recvMsg.transID].back());
+			  log->logUpdateSuccess(&(memberNode->addr),true,recvMsg.transID,kvData[recvMsg.transID].front(),kvData[recvMsg.transID].back());
 		  } else {
-			  log->logUpdateFail(&(memberNode->addr),true,recvMsg.transID,quorumInfo.kvData[recvMsg.transID].front(),quorumInfo.kvData[recvMsg.transID].back());
+			  log->logUpdateFail(&(memberNode->addr),true,recvMsg.transID,kvData[recvMsg.transID].front(),kvData[recvMsg.transID].back());
 		  }
 	}
 }
 
-
-// sndMsg Constructor 
-void MP2Node::sndMsg(int transID, int replyMsgType, bool isSuccessful) {
+void MP2Node::sndMsg(Address coordinatorAddr, int replyMsgType, int transID, string key, string value) {
 	switch(replyMsgType) {
-		case 1:
-		  if(isSuccessful) {
-			  log->logCreateSuccess(&(memberNode->addr),true,transID,quorumInfo.kvData[transID].front(),quorumInfo.kvData[transID].back());
-		  } else {
-			  log->logCreateFail(&(memberNode->addr),true,transID,quorumInfo.kvData[transID].front(),quorumInfo.kvData[transID].back());
-		  }
-		  break;
-
-		case 2:
-		  if(isSuccessful) {
-			  log->logDeleteSuccess(&(memberNode->addr),true,transID,quorumInfo.kvData[transID].front());
-		  } else {
-			  log->logDeleteFail(&(memberNode->addr),true,transID,quorumInfo.kvData[transID].front());
-		  }
-		  break;
-
 		case 3:
-		  if(isSuccessful) {
-			  log->logReadSuccess(&(memberNode->addr),true,transID,quorumInfo.kvData[transID].front(),quorumInfo.kvData[transID].back());
-		  } else {
-			  log->logReadFail(&(memberNode->addr),true,transID,quorumInfo.kvData[transID].front());
-		  }
+		  log->logReadFail(&(coordinatorAddr),true,transID,key);
 		  break;
 
 		default:
-		  if(isSuccessful) {
-			  log->logUpdateSuccess(&(memberNode->addr),true,transID,quorumInfo.kvData[transID].front(),quorumInfo.kvData[transID].back());
-		  } else {
-			  log->logUpdateFail(&(memberNode->addr),true,transID,quorumInfo.kvData[transID].front(),quorumInfo.kvData[transID].back());
-		  }
+		  log->logUpdateFail(&(coordinatorAddr),true,transID,key,value);
 	}
 }
 
@@ -240,6 +218,35 @@ void MP2Node::updateRing() {
 			ring.emplace_back(curMemList.at(i));
 		} 
 		change = true;
+	}
+
+	/*
+	 * Step 2.5: Check current unfinshed operations
+	 */
+	int ringCnt;
+	for(int i = 31000; i <= g_transID + 40000; i++) {
+		ringCnt = 0;
+		if(!qCheck[i].hasQuorum && qCheck[i].lastUpdatedTime != 0) {
+			for(std::vector<Node>::iterator it = ring.begin(); it != ring.end(); ++it) {
+				if(it->getAddress()->getAddress() == qCheck[i].pReplica || it->getAddress()->getAddress() == qCheck[i].sReplica || it->getAddress()->getAddress() == qCheck[i].tReplica ) {
+					ringCnt++;
+					continue;
+				}
+			}
+
+			if(ringCnt < 2 && qCheck[i].coolDwn != true) {
+				qCheck[i].sntFailureMsg = true;
+				qCheck[i].hasQuorum = true;
+				if(qCheck[i].operation == READ) {
+					sndMsg(qCheck[i].coordinatorAddr,3,qCheck[i].qTransID,qCheck[i].key,"");
+					qCheck[i].lastUpdatedTime = par->getcurrtime();
+				} else {
+					sndMsg(qCheck[i].coordinatorAddr,4,qCheck[i].qTransID,qCheck[i].key,qCheck[i].value);
+					qCheck[i].lastUpdatedTime = par->getcurrtime();
+				}
+				qCheck[i].coolDwn = true;
+			}
+		}
 	}
 
 	/*
@@ -308,9 +315,9 @@ void MP2Node::clientCreate(string key, string value) {
 	vector<Node> replicaNodes;
 	replicaNodes = findNodes(key);
 	int transID = 1;
-	int combinedNum = combine(transID,createTransID);
-	quorumInfo.kvData[combinedNum].emplace_back(key);
-	quorumInfo.kvData[combinedNum].emplace_back(value);
+	int combinedNum = combine(transID,g_transID, &g_transID);
+	kvData[combinedNum].emplace_back(key);
+	kvData[combinedNum].emplace_back(value);
 
 	for(int i = 0; i < replicaNodes.size(); i++){
 		string msg;
@@ -326,7 +333,7 @@ void MP2Node::clientCreate(string key, string value) {
 		msg = Message(combinedNum,this->memberNode->addr, msgType, key, value, repType).toString();
 		emulNet->ENsend(&(this->memberNode->addr), replicaNodes.at(i).getAddress(), msg);
 	}
-	createTransID++;
+	g_transID++;
 }
 
 /**
@@ -348,15 +355,29 @@ void MP2Node::clientRead(string key){
 	vector<Node> replicaNodes;
 	replicaNodes = findNodes(key);
 	int transID = 3;
-	int combinedNum = combine(transID,createTransID);
-	quorumInfo.kvData[combinedNum].emplace_back(key);
+	int combinedNum = combine(transID,g_transID, &g_transID);
+	kvData[combinedNum].emplace_back(key);
+	// Add to global operation checker
+	qCheck[combinedNum].qTransID = combinedNum;
+	qCheck[combinedNum].operation = msgType;
+	qCheck[combinedNum].coordinatorAddr = memberNode->addr;
+	qCheck[combinedNum].key = key;
+	qCheck[combinedNum].lastUpdatedTime = par->getcurrtime();
+
 
 	for(int i = 0; i < replicaNodes.size(); i++){
 		string msg;
 		msg = Message(combinedNum,this->memberNode->addr, msgType, key).toString();
 		emulNet->ENsend(&(this->memberNode->addr), replicaNodes.at(i).getAddress(), msg);
+		if(i == 0) {
+			qCheck[combinedNum].pReplica = replicaNodes.at(i).getAddress()->getAddress();
+		} else if(i == 1) {
+			qCheck[combinedNum].sReplica = replicaNodes.at(i).getAddress()->getAddress();
+		} else {
+			qCheck[combinedNum].tReplica = replicaNodes.at(i).getAddress()->getAddress();
+		}
 	}
-	createTransID++;
+	g_transID++;
 }
 
 /**
@@ -378,25 +399,35 @@ void MP2Node::clientUpdate(string key, string value){
 	vector<Node> replicaNodes;
 	replicaNodes = findNodes(key);
 	int transID = 4;
-	int combinedNum = combine(transID,createTransID);
-	quorumInfo.kvData[combinedNum].emplace_back(key);
-	quorumInfo.kvData[combinedNum].emplace_back(value);
+	int combinedNum = combine(transID,g_transID, &g_transID);
+	kvData[combinedNum].emplace_back(key);
+	kvData[combinedNum].emplace_back(value);
+	// Add to global operation checker
+	qCheck[combinedNum].qTransID = combinedNum;
+	qCheck[combinedNum].operation = msgType;
+	qCheck[combinedNum].coordinatorAddr = memberNode->addr;
+	qCheck[combinedNum].key = key;
+	qCheck[combinedNum].value = value;
+	qCheck[combinedNum].lastUpdatedTime = par->getcurrtime();
 
 	for(int i = 0; i < replicaNodes.size(); i++){
 		string msg;
 		ReplicaType repType;
 		if(i == 0) {
 			repType = PRIMARY;
+			qCheck[combinedNum].pReplica = replicaNodes.at(i).getAddress()->getAddress();
 		}else if(i == 1) {
 			repType = SECONDARY;
+			qCheck[combinedNum].sReplica = replicaNodes.at(i).getAddress()->getAddress();
 		} else {
 			repType = TERTIARY;
+			qCheck[combinedNum].tReplica = replicaNodes.at(i).getAddress()->getAddress();
 		}
 
 		msg = Message(combinedNum,this->memberNode->addr, msgType, key, value, repType).toString();
 		emulNet->ENsend(&(this->memberNode->addr), replicaNodes.at(i).getAddress(), msg);
 	}
-	createTransID++;
+	g_transID++;
 }
 
 /**
@@ -418,8 +449,8 @@ void MP2Node::clientDelete(string key){
 	vector<Node> replicaNodes;
 	replicaNodes = findNodes(key);
 	int transID = 2;
-	int combinedNum = combine(transID,createTransID);
-	quorumInfo.kvData[combinedNum].emplace_back(key);
+	int combinedNum = combine(transID,g_transID, &g_transID);
+	kvData[combinedNum].emplace_back(key);
 
 
 	for(int i = 0; i < replicaNodes.size(); i++){
@@ -428,7 +459,7 @@ void MP2Node::clientDelete(string key){
 		msg = Message(combinedNum,this->memberNode->addr, msgType, key).toString();
 		emulNet->ENsend(&(this->memberNode->addr), replicaNodes.at(i).getAddress(), msg);
 	}
-	createTransID++;
+	g_transID++;
 }
 
 /**
@@ -588,6 +619,7 @@ void MP2Node::checkMessages() {
 		} else if(recvMsg.type == UPDATE) {
 			bool isUpdated = updateKeyValue(recvMsg.key,recvMsg.value,recvMsg.replica);
 			MessageType replyMsgType = REPLY;
+
 			if(isUpdated) {
 				string repMsg = Message(recvMsg.transID,memberNode->addr,replyMsgType,true).toString();
 				emulNet->ENsend(&(memberNode->addr),&(recvMsg.fromAddr),repMsg);
@@ -598,33 +630,11 @@ void MP2Node::checkMessages() {
 
 		} else if(recvMsg.type == READ) {
 			string keyVal = readKey(recvMsg.key);
+			kvData[recvMsg.transID].emplace_back(keyVal);
+			qCheck[recvMsg.transID].value = keyVal;
 			string repMsg = Message(recvMsg.transID,memberNode->addr,keyVal).toString();
 			emulNet->ENsend(&(memberNode->addr),&(recvMsg.fromAddr),repMsg);
-			qCheck[recvMsg.transID].lastUpdatedTime = par->getcurrtime();
-			qCheck[recvMsg.transID].qTransID = recvMsg.transID;
-			qCheck[recvMsg.transID].operation = READ;
-			qCheck[recvMsg.transID].key = recvMsg.key;
-			qCheck[recvMsg.transID].value = keyVal;
-			if(keyVal == "") {
-				qCheck[recvMsg.transID].failureCnt++;
-			} else {
-				qCheck[recvMsg.transID].successCnt++;
-			}
-			if(qCheck[recvMsg.transID].failureCnt >= 2 || qCheck[recvMsg.transID].successCnt >= 2) {
-				qCheck[recvMsg.transID].hasQuorum = true;
-			}
-			cout << createTransID << endl;
-			for(int i = 31000; i <= createTransID + 30000; i++) {
-				cout << qCheck[i].hasQuorum << " " << qCheck[i].lastUpdatedTime << endl;
-				if(qCheck[i].hasQuorum == false && qCheck[i].lastUpdatedTime != 0) {
-					cout << "Bye!!" << endl;
-					if(qCheck[i].lastUpdatedTime + 3 < par->getcurrtime()) {
-						cout << "Hi" << endl;
-						sndMsg(qCheck[i].qTransID,recvMsg.type,false);
-					}
-				}
-				continue;
-			}
+
 		} else if(recvMsg.type == DELETE) {
 			bool deletedKey = deletekey(recvMsg.key);
 			MessageType replyMsgType = REPLY;
@@ -638,7 +648,6 @@ void MP2Node::checkMessages() {
 
 		} else if(recvMsg.type == READREPLY) {
 			stack<int> digits = splitInteger(recvMsg);
-			quorumInfo.kvData[recvMsg.transID].emplace_back(recvMsg.value);
 			sndCoordinatorMsg(recvMsg,digits.top());
 			
 		} else {

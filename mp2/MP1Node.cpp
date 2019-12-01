@@ -487,7 +487,7 @@ void MP1Node::sendGossipMsg() {
 /**
  * FUNCTION NAME: nodeLoopOps
  *
- * DESCRIPTION: Check if any node hasn't responded within a timeout period of 20 and then delete
+ * DESCRIPTION: Check if any node hasn't responded within a timeout period of 15 and then delete
  * 				the node from the membership list.
  */
 void MP1Node::nodeLoopOps() {
@@ -496,7 +496,7 @@ void MP1Node::nodeLoopOps() {
 
     while(myPos != memberNode->memberList.end()) {
         long msgDelay = par->getcurrtime() - myPos->timestamp;
-        if(msgDelay >= 20) {
+        if(msgDelay >= 15) {
             Address removedAddr = myAddress(myPos->id, myPos->port);
             #ifdef DEBUGLOG
             log->logNodeRemove(&memberNode->addr, &removedAddr);

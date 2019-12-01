@@ -26,28 +26,41 @@ static int readTransID = 0;
 static int updateTransID = 0;
 static int deleteTransID = 0;
 
+// holds all of the keys and values based on transID
+static map<int, std::vector<string>> kvData;
+
 /**
  * Struct Name: quorumChck
  * 
  * DESCRIPTION: Checks if we have quorum based on transID periodically.
  */
 typedef struct QuorumChck {
-	// last updated time
-	int lastUpdatedTime;
 	// trans_id
 	int qTransID;
 	// operation
 	MessageType operation;
+	// lastUpdatedTime
+	int lastUpdatedTime;
+	// Address 
+	Address coordinatorAddr;
+	// Primary Replica 
+	string pReplica;
+	// Secondary Replica 
+	string sReplica;
+	// Tertiary Replica
+	string tReplica;
 	// Success Cnt
-	int successCnt;
+	bool sntSuccessMsg;
 	// Falure Cnt
-	int failureCnt;
+	bool sntFailureMsg;
 	// hasQuorum
 	bool hasQuorum;
 	// key
 	string key; 
 	// value
 	string value;
+	// coolDown 
+	bool coolDwn;
 
 }QuorumChck;
 
@@ -73,8 +86,6 @@ typedef struct quorum_attr {
 	map<int, int> cachedUpdateTransID;
 	// cachedDeleteTransID
 	map<int, int> cachedDeleteTransID;
-	// holds all of the keys and values based on transID
-	map<int, std::vector<string>> kvData;
 	// stabilization message 
 	bool stabilMsg;
 }quorum_attr;
@@ -120,7 +131,7 @@ public:
 	}
 
 	// TransIDs Combine Function
-	int combine(int integer1, int integer2);
+	int combine(int integer1, int integer2, int *operationTransID);
 
 	// Split Integer
 	stack<int> splitInteger(Message recvMsg);
@@ -132,7 +143,7 @@ public:
 	void sndMsg(Message recvMsg, int replyMsgType, bool isSuccessful);
 
 	// Send Coordinator Message based on Message Type
-	void sndMsg(int transID, int replyMsgType, bool isSuccessful);
+	void sndMsg(Address coordinatorAddr, int replyMsgType, int transID, string key, string value);
 
 	// ring functionalities
 	void updateRing();

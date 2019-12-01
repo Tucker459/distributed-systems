@@ -338,21 +338,33 @@ read_test3_part1_fail_count=0
 read_test5_fail_count=0
 
 read_fails=`grep -i "${READ_FAILURE}" dbg.log 2>/dev/null`
+#echo "read_fails: " ${read_fails}
+
 if [ "${read_fails}" ]
 then
 	while read fail
 	do
 		time_of_this_fail=`echo "${fail}" | cut -d" " -f2 | tr -s '[' ' ' | tr -s ']' ' '`
 		if [ "${time_of_this_fail}" -ge "${read_op_test3_part1_time}" -a "${time_of_this_fail}" -lt "${read_op_test3_part2_time}" ]
+		echo "time_of_this_fail:" ${time_of_this_fail}
+		echo "read_op_test3_part1_time:" ${read_op_test3_part1_time}
+		echo "read_op_test3_part2_time:" ${read_op_test3_part2_time}
 		then
 			actual_key=`echo "${fail}" | grep "${read_op_test3_part1_key}" | wc -l`
+			echo "fail: " ${fail} 
+			echo "actual_key1: " ${actual_key}
+			echo "read_op_test3_part1_key: " ${read_op_test3_part1_key}
 			if [ "${actual_key}"  -eq 1 ]
-			then	
+			then
 				read_test3_part1_fail_count=`expr ${read_test3_part1_fail_count} + 1`
 			fi
+		echo "read_op_test5_time:" ${read_op_test5_time}
+		echo "time_of_this_fail:" ${time_of_this_fail}
 		elif [ "${time_of_this_fail}" -ge "${read_op_test5_time}" ]
 		then
 			actual_key=`echo "${fail}" | grep "${INVALID_KEY}" | wc -l`
+			echo "actual_key2: " ${actual_key}
+			echo "invalid_key: " ${INVALID_KEY}
 			if [ "${actual_key}" -eq 1 ]
 			then
 				read_test5_fail_count=`expr ${read_test5_fail_count} + 1`
@@ -365,8 +377,6 @@ if [ "${read_test1_success_count}" -eq "${QUORUMPLUSONE}" -o "${read_test1_succe
 then
 	READ_TEST1_STATUS="${SUCCESS}"
 fi
-echo "Read_Test2_Success_Cout: " ${read_test2_success_count}
-echo "Quorum Plus One: " ${QUORUMPLUSONE}
 if [ "${read_test2_success_count}" -eq "${QUORUMPLUSONE}" ]
 then
 	READ_TEST2_STATUS="${SUCCESS}"
@@ -384,6 +394,9 @@ if [ "${read_test4_success_count}" -eq "${QUORUMPLUSONE}" -o "${read_test4_succe
 then
 	READ_TEST4_STATUS="${SUCCESS}"
 fi
+echo "read_test5_fail_count:" ${read_test5_fail_count}
+echo "QUORUMPLUSONE:" ${QUORUMPLUSONE}
+echo "RFPLUSONE:" ${RFPLUSONE}
 if [ "${read_test5_fail_count}" -eq "${QUORUMPLUSONE}" -o "${read_test5_fail_count}" -eq "${RFPLUSONE}" ]
 then
 	READ_TEST5_STATUS="${SUCCESS}"
