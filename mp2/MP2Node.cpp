@@ -94,16 +94,18 @@ void MP2Node::sndCoordinatorMsg(Message recvMsg, int replyMsgType) {
 			  quorumInfo.quorumSuccessCnt[recvMsg.transID] = 0;
 			  quorumInfo.quorumFailureCnt[recvMsg.transID] = 0;
 			  quorumInfo.cachedReadTransID[recvMsg.transID] = 1;
-
 		  } else {
 			  quorumInfo.cachedReadTransID[recvMsg.transID]++;
 		  }
 		  break;
 
 		default:
-		   if(recvMsg.transID != quorumInfo.cachedCreateTransID[recvMsg.transID]) {
+		   if(recvMsg.transID != quorumInfo.cachedUpdateTransID[recvMsg.transID]) {
 			   quorumInfo.quorumSuccessCnt[recvMsg.transID] = 0;
 			   quorumInfo.quorumFailureCnt[recvMsg.transID] = 0;
+			   quorumInfo.cachedUpdateTransID[recvMsg.transID] = 1;
+		   } else {
+			   quorumInfo.cachedUpdateTransID[recvMsg.transID]++;
 		   }
 	}
 
@@ -163,9 +165,9 @@ void MP2Node::sndMsg(Message recvMsg, int replyMsgType, bool isSuccessful) {
 
 		default:
 		  if(isSuccessful) {
-			  log->logCreateSuccess(&(memberNode->addr),true,recvMsg.transID,quorumInfo.kvData[recvMsg.transID].front(),quorumInfo.kvData[recvMsg.transID].back());
+			  log->logUpdateSuccess(&(memberNode->addr),true,recvMsg.transID,quorumInfo.kvData[recvMsg.transID].front(),quorumInfo.kvData[recvMsg.transID].back());
 		  } else {
-			  log->logCreateFail(&(memberNode->addr),true,recvMsg.transID,quorumInfo.kvData[recvMsg.transID].front(),quorumInfo.kvData[recvMsg.transID].back());
+			  log->logUpdateFail(&(memberNode->addr),true,recvMsg.transID,quorumInfo.kvData[recvMsg.transID].front(),quorumInfo.kvData[recvMsg.transID].back());
 		  }
 	}
 }
@@ -343,6 +345,8 @@ void MP2Node::clientUpdate(string key, string value){
 	replicaNodes = findNodes(key);
 	int transID = 4;
 	int combinedNum = combine(transID,createTransID);
+	quorumInfo.kvData[combinedNum].emplace_back(key);
+	quorumInfo.kvData[combinedNum].emplace_back(value);
 
 	for(int i = 0; i < replicaNodes.size(); i++){
 		string msg;
@@ -465,13 +469,15 @@ bool MP2Node::updateKeyValue(string key, string value, ReplicaType replica) {
 	bool isUpdated;
 	string entryVal;
 	entryVal = Entry(value, par->getcurrtime(), replica).convertToString();
-	updatedKey = ht->update(key,entryVal);
+	isUpdated = ht->update(key,entryVal);
 
 	if(isUpdated){
-		
+		log->logUpdateSuccess(&(memberNode->addr), false, g_transID, key, value);
+	} else {
+		log->logUpdateFail(&(memberNode->addr), false, g_transID, key, value);
 	}
 
-	return updatedKey;
+	return isUpdated;
 }
 
 /**
@@ -548,10 +554,13 @@ void MP2Node::checkMessages() {
 			
 		} else if(recvMsg.type == UPDATE) {
 			bool isUpdated = updateKeyValue(recvMsg.key,recvMsg.value,recvMsg.replica);
+			MessageType replyMsgType = REPLY;
 			if(isUpdated) {
-
+				string repMsg = Message(recvMsg.transID,memberNode->addr,replyMsgType,true).toString();
+				emulNet->ENsend(&(memberNode->addr),&(recvMsg.fromAddr),repMsg);
 			} else {
-
+				string repMsg = Message(recvMsg.transID,memberNode->addr,replyMsgType,false).toString();
+				emulNet->ENsend(&(memberNode->addr),&(recvMsg.fromAddr),repMsg);
 			}
 
 		} else if(recvMsg.type == READ) {
