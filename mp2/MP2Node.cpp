@@ -155,10 +155,8 @@ void MP2Node::sndMsg(Message recvMsg, int replyMsgType, bool isSuccessful) {
 
 		case 3:
 		  if(isSuccessful) {
-			  cout << "transID: " << recvMsg.transID << " Key: " << quorumInfo.kvData[recvMsg.transID].front() << " Value: " << quorumInfo.kvData[recvMsg.transID].back() << endl;
 			  log->logReadSuccess(&(memberNode->addr),true,recvMsg.transID,quorumInfo.kvData[recvMsg.transID].front(),quorumInfo.kvData[recvMsg.transID].back());
 		  } else {
-			  cout << "transID: " << recvMsg.transID << " Key: " << quorumInfo.kvData[recvMsg.transID].front() << " Value: " << quorumInfo.kvData[recvMsg.transID].back() << endl;
 			  log->logReadFail(&(memberNode->addr),true,recvMsg.transID,quorumInfo.kvData[recvMsg.transID].front());
 		  }
 		  break;
@@ -203,7 +201,7 @@ void MP2Node::updateRing() {
 		ring.clear();
 		for(unsigned int i = 0; i < curMemList.size(); i++) {
 			ring.emplace_back(curMemList.at(i));
-		}
+		} 
 		change = true;
 	}
 
@@ -314,15 +312,14 @@ void MP2Node::clientRead(string key){
 	replicaNodes = findNodes(key);
 	int transID = 3;
 	int combinedNum = combine(transID,createTransID);
-	quorumInfo.kvData[combinedNum].emplace_back(key); 
-	cout << "BEFORE1: " << " MemberInfo: " << memberNode->addr.getAddress() << " TransID: " << combinedNum << " Key: " << quorumInfo.kvData[combinedNum].front() << endl;
+	quorumInfo.kvData[combinedNum].emplace_back(key);
 
 	for(int i = 0; i < replicaNodes.size(); i++){
 		string msg;
-
 		msg = Message(combinedNum,this->memberNode->addr, msgType, key).toString();
 		emulNet->ENsend(&(this->memberNode->addr), replicaNodes.at(i).getAddress(), msg);
 	}
+	
 	createTransID++;
 }
 
@@ -567,6 +564,7 @@ void MP2Node::checkMessages() {
 		} else if(recvMsg.type == READ) {
 			string keyVal = readKey(recvMsg.key);
 			string repMsg = Message(recvMsg.transID,memberNode->addr,keyVal).toString();
+			cout << "Member Info: " << memberNode->addr.getAddress() << " TransID: " << recvMsg.transID << " IsFailed: " << memberNode->bFailed << endl;
 			emulNet->ENsend(&(memberNode->addr),&(recvMsg.fromAddr),repMsg);
 
 		} else if(recvMsg.type == DELETE) {
@@ -590,7 +588,6 @@ void MP2Node::checkMessages() {
 				stack<int> digits = splitInteger(recvMsg);
 				sndCoordinatorMsg(recvMsg,digits.top());
 			}
-			
 		}
 	}
 
@@ -673,11 +670,7 @@ void MP2Node::stabilizationProtocol() {
 	vector<Node> allReplicas;
 
 	for(search = ht->hashTable.begin(); search != ht->hashTable.end(); search++) {
-	
-	}
-
-
-
-	// Check if ht is equal to empty string 
-	// clientCreate everything 
+		quorumInfo.stabilMsg = true;
+		clientCreate(search->first, search->second);
+	} 
 }

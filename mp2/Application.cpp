@@ -522,7 +522,6 @@ void Application::readTest() {
 			log->LOG(&mp2[number]->getMemberNode()->addr, "Could not find at least quorum replicas for this key. Exiting!!! size of replicas vector: %d", replicas.size());
 			exit(1);
 		}
-		cout << "Step 2.b passed!" << endl;
 
 		// Step 2.c Fail a replica
 		for ( int i = 0; i < par->EN_GPSZ; i++ ) {
@@ -555,8 +554,6 @@ void Application::readTest() {
 			cout<<"Could not fail a node. Exiting!!!";
 			exit(1);
 		}
-
-		cout << "Step 2.c passed!" << endl;
 
 		number = findARandomNodeThatIsAlive();
 
