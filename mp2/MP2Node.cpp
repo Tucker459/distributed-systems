@@ -168,8 +168,12 @@ void MP2Node::sndMsg(Message recvMsg, int replyMsgType, bool isSuccessful) {
 		default:
 		  if(isSuccessful) {
 			  log->logUpdateSuccess(&(memberNode->addr),true,recvMsg.transID,kvData[recvMsg.transID].front(),kvData[recvMsg.transID].back());
+			  qCheck[recvMsg.transID].sntSuccessMsg = true;
+			  qCheck[recvMsg.transID].hasQuorum = true;
 		  } else {
 			  log->logUpdateFail(&(memberNode->addr),true,recvMsg.transID,kvData[recvMsg.transID].front(),kvData[recvMsg.transID].back());
+			  qCheck[recvMsg.transID].sntFailureMsg = true;
+			  qCheck[recvMsg.transID].hasQuorum = true;
 		  }
 	}
 }
@@ -221,40 +225,37 @@ void MP2Node::updateRing() {
 	}
 
 	/*
-	 * Step 2.5: Check current unfinshed operations
-	 */
-	int ringCnt;
-	for(int i = 31000; i <= g_transID + 40000; i++) {
-		ringCnt = 0;
-		if(!qCheck[i].hasQuorum && qCheck[i].lastUpdatedTime != 0) {
-			for(std::vector<Node>::iterator it = ring.begin(); it != ring.end(); ++it) {
-				if(it->getAddress()->getAddress() == qCheck[i].pReplica || it->getAddress()->getAddress() == qCheck[i].sReplica || it->getAddress()->getAddress() == qCheck[i].tReplica ) {
-					ringCnt++;
-					continue;
-				}
-			}
-
-			if(ringCnt < 2 && qCheck[i].coolDwn != true) {
-				qCheck[i].sntFailureMsg = true;
-				qCheck[i].hasQuorum = true;
-				if(qCheck[i].operation == READ) {
-					sndMsg(qCheck[i].coordinatorAddr,3,qCheck[i].qTransID,qCheck[i].key,"");
-					qCheck[i].lastUpdatedTime = par->getcurrtime();
-				} else {
-					sndMsg(qCheck[i].coordinatorAddr,4,qCheck[i].qTransID,qCheck[i].key,qCheck[i].value);
-					qCheck[i].lastUpdatedTime = par->getcurrtime();
-				}
-				qCheck[i].coolDwn = true;
-			}
-		}
-	}
-
-	/*
-	 * Step 3: Run the stabilization protocol IF REQUIRED
+	 * Step 3: Run the stabilization protocol IF REQUIRED & Check current unfinshed operations
 	 */
 	// Run stabilization protocol if the hash table size is greater than zero and if there has been a changed in the ring
 	if(ht->currentSize() > 0 && change) {
 		stabilizationProtocol();
+
+		int ringCnt;
+		for(int i = 31000; i <= g_transID + 40000; i++) {
+			ringCnt = 0;
+			if(!qCheck[i].hasQuorum && qCheck[i].lastUpdatedTime != 0) {
+				for(std::vector<Node>::iterator it = ring.begin(); it != ring.end(); ++it) {
+					if(it->getAddress()->getAddress() == qCheck[i].pReplica || it->getAddress()->getAddress() == qCheck[i].sReplica || it->getAddress()->getAddress() == qCheck[i].tReplica ) {
+						ringCnt++;
+						continue;
+					}
+				}
+
+				if(ringCnt < 2 && qCheck[i].coolDwn != true) {
+					qCheck[i].sntFailureMsg = true;
+					qCheck[i].hasQuorum = true;
+					if(qCheck[i].operation == READ) {
+						sndMsg(qCheck[i].coordinatorAddr,3,qCheck[i].qTransID,qCheck[i].key,"");
+						qCheck[i].lastUpdatedTime = par->getcurrtime();
+					} else {
+						sndMsg(qCheck[i].coordinatorAddr,4,qCheck[i].qTransID,qCheck[i].key,qCheck[i].value);
+						qCheck[i].lastUpdatedTime = par->getcurrtime();
+					}
+					qCheck[i].coolDwn = true;
+				}
+			}
+		}
 	}
 }
 
