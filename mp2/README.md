@@ -10,4 +10,4 @@ I was tasked with implementing certain features of a Fault Tolerant Key-Value St
 - **Quorum consistency level** for both reads and writes (at least two replicas)
 - **Stabilization** after failure (recreate three replicas after failure)
 
-Full Instructions: [mp2_specifications.pdf](MP2_specification-document.pdf)
+Full Instructions: [mp2_specifications.pdf](MP2-specification-document.pdf)
