@@ -9,3 +9,5 @@ I was tasked with implementing certain features of a Fault Tolerant Key-Value St
 - **Fault-tolerance** up to two failures (by replicating each key three times to three successive nodes in the ring, starting from the first node at or to the clockwise of the hashed key)
 - **Quorum consistency level** for both reads and writes (at least two replicas)
 - **Stabilization** after failure (recreate three replicas after failure)
+
+Full Instructions: [mp2_specifications.pdf](MP2_specification-document.pdf)
